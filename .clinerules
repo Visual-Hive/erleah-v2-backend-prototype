@@ -1,0 +1,316 @@
+# Cline Rules for Erleah Backend Development
+
+## Project Overview
+This is the backend for Erleah, an AI-powered conference assistant. It uses:
+- **LangGraph** for agentic workflows (multi-step reasoning, planning, reflection)
+- **Anthropic Claude Sonnet 4** as the LLM (with vision capabilities)
+- **FastAPI** for the API server with SSE streaming
+- **Qdrant** for vector search (attendees, sessions, exhibitors)
+- **PostgreSQL** for relational data
+- **Python 3.11+** with modern async patterns
+
+## Architecture Philosophy
+
+### Agent-First Design
+The agent is the brain. It:
+1. Understands user intent
+2. Plans actions (which tools to use, in what order)
+3. Executes tools (potentially in parallel)
+4. Reflects on results (did it work? need more tools?)
+5. Responds to user
+
+Tools are dumb workers. The agent is smart.
+
+### Streaming Everything
+All responses stream via SSE:
+- Thinking steps ("I'm planning to search for...")
+- Tool executions ("Searching vector database...")
+- Incremental responses ("Based on what I found...")
+
+This makes the UI feel instant even when operations take 3-5 seconds.
+
+### Prompt Caching First
+Always use prompt caching for conference data:
+- Conference info cached once per user
+- 90% cost savings
+- 90% speed improvement
+
+## Code Style Guidelines
+
+### Python Style
+- Use **async/await** everywhere (FastAPI is async)
+- Type hints on all functions
+- Pydantic models for data validation
+- Docstrings for complex functions
+- Keep functions small (<50 lines)
+
+### File Organization
+```
+src/
+├── agent/          # LangGraph agent logic
+├── tools/          # Tool implementations (one file per tool)
+├── db/             # Database connections
+├── api/            # FastAPI routes
+└── config.py       # Settings (from .env)
+```
+
+### Naming Conventions
+- Files: `snake_case.py`
+- Classes: `PascalCase`
+- Functions: `snake_case`
+- Constants: `UPPER_SNAKE_CASE`
+- Tools: `{purpose}_tool.py` (e.g., `vector_search_tool.py`)
+
+## Tool Development Pattern
+
+Each tool should:
+
+1. **Inherit from BaseTool**
+```python
+from langchain.tools import BaseTool
+from pydantic import Field
+
+class MyCustomTool(BaseTool):
+    name = "tool_name"
+    description = "Clear description for the LLM"
+    
+    # Args with validation
+    arg1: str = Field(description="What this arg does")
+    
+    def _run(self, arg1: str) -> dict:
+        # Implementation
+        return {"result": "data"}
+    
+    async def _arun(self, arg1: str) -> dict:
+        # Async version (preferred)
+        return await async_implementation()
+```
+
+2. **Have excellent descriptions**
+   - The LLM reads the description to decide when to use the tool
+   - Be specific about what it does
+   - Include examples in description if helpful
+
+3. **Return structured data**
+   - Always return dict/Pydantic model, not raw strings
+   - Include metadata (timestamps, confidence scores, etc.)
+
+4. **Handle errors gracefully**
+   - Try/except with meaningful error messages
+   - Return errors as data, don't raise (agent can handle)
+
+## LangGraph Patterns
+
+### State Definition
+```python
+from typing import TypedDict, Annotated
+from langgraph.graph.message import add_messages
+
+class AgentState(TypedDict):
+    messages: Annotated[list, add_messages]  # Conversation history
+    user_context: dict  # Location, preferences, etc.
+    plan: list[str]     # What the agent plans to do
+    tool_results: dict  # Results from tool executions
+```
+
+### Graph Structure
+```python
+from langgraph.graph import StateGraph, END
+
+workflow = StateGraph(AgentState)
+
+# Add nodes (processing steps)
+workflow.add_node("understand", understand_intent)
+workflow.add_node("plan", plan_actions)
+workflow.add_node("execute", execute_tools)
+workflow.add_node("respond", generate_response)
+
+# Add edges (flow)
+workflow.add_edge("understand", "plan")
+workflow.add_edge("plan", "execute")
+workflow.add_conditional_edges(
+    "execute",
+    should_continue,
+    {"continue": "execute", "finish": "respond"}
+)
+workflow.add_edge("respond", END)
+
+app = workflow.compile()
+```
+
+### Streaming Responses
+```python
+async for output in app.astream(initial_state):
+    # Each output is a dict with node outputs
+    if "plan" in output:
+        # Stream planning step
+        yield {"event": "thinking", "data": output["plan"]}
+    
+    if "tool_results" in output:
+        # Stream tool execution
+        yield {"event": "tools", "data": output["tool_results"]}
+    
+    if "response" in output:
+        # Stream final response
+        yield {"event": "message", "data": output["response"]}
+```
+
+## FastAPI Patterns
+
+### SSE Streaming Endpoint
+```python
+from sse_starlette.sse import EventSourceResponse
+
+@app.post("/chat/stream")
+async def chat_stream(request: ChatRequest):
+    async def event_generator():
+        async for event in agent_stream(request.message):
+            yield {
+                "event": event["type"],
+                "data": json.dumps(event["data"])
+            }
+    
+    return EventSourceResponse(event_generator())
+```
+
+### CORS for Noodl Frontend
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+## Database Patterns
+
+### Qdrant (Vector Search)
+```python
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
+
+# Initialize
+client = QdrantClient(url=settings.QDRANT_URL)
+
+# Create collection
+client.create_collection(
+    collection_name="attendees",
+    vectors_config=VectorParams(size=1536, distance=Distance.COSINE)
+)
+
+# Search
+results = client.search(
+    collection_name="attendees",
+    query_vector=embedding,
+    limit=10
+)
+```
+
+### PostgreSQL (SQLAlchemy)
+```python
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+
+engine = create_async_engine(settings.DATABASE_URL)
+
+async with AsyncSession(engine) as session:
+    result = await session.execute(query)
+```
+
+## Testing Guidelines
+
+### Write tests for:
+- Tool implementations (unit tests)
+- API endpoints (integration tests)
+- Agent workflows (end-to-end tests)
+
+### Use pytest-asyncio
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_vector_search_tool():
+    tool = VectorSearchTool()
+    result = await tool._arun(query="Python developers")
+    assert len(result["results"]) > 0
+```
+
+## Development Workflow
+
+### Adding a New Tool
+
+1. Create file in `src/tools/my_tool.py`
+2. Implement tool class with clear description
+3. Add to tool registry in `src/agent/graph.py`
+4. Test with simple agent query
+5. Refine description based on agent behavior
+
+### Debugging Agent Behavior
+
+1. Check agent logs - see what tools it's choosing
+2. Review tool descriptions - are they clear?
+3. Test tools individually - do they return good data?
+4. Adjust descriptions/examples to guide agent better
+
+### Performance Optimization
+
+1. Use prompt caching for static data
+2. Implement tool result caching (Redis)
+3. Parallelize tool execution when possible
+4. Lazy-load heavy resources
+
+## Common Pitfalls to Avoid
+
+❌ **Don't**: Make tools that do too much
+✅ **Do**: Small, focused tools that compose well
+
+❌ **Don't**: Raise exceptions in tools
+✅ **Do**: Return error info as data
+
+❌ **Don't**: Hardcode conference data
+✅ **Do**: Load from database/config
+
+❌ **Don't**: Block on I/O operations
+✅ **Do**: Use async/await everywhere
+
+❌ **Don't**: Return raw strings from tools
+✅ **Do**: Return structured dicts/Pydantic models
+
+## Environment Variables
+
+Required in `.env`:
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost/erleah
+QDRANT_URL=http://localhost:6333
+REDIS_URL=redis://localhost:6379
+```
+
+Optional:
+```bash
+LOG_LEVEL=INFO
+CORS_ORIGINS=*
+MAX_CONCURRENT_REQUESTS=10
+```
+
+## When to Ask for Help
+
+- Uncertain about LangGraph state management
+- Complex async patterns causing issues
+- Database schema design questions
+- Tool not being selected by agent (description issues)
+- Performance problems (slow responses)
+
+## Resources
+
+- [LangGraph Docs](https://langchain-ai.github.io/langgraph/)
+- [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [Claude API Docs](https://docs.anthropic.com/)
+- [Qdrant Docs](https://qdrant.tech/documentation/)
+
+---
+
+**Remember**: The agent is smart, tools are simple. Let Claude do the reasoning, you build the tools.
