@@ -33,9 +33,18 @@ dependencies = [
     "httpx>=0.26.0",
     "python-multipart>=0.0.6",
     "sse-starlette>=1.8.2",
-    
-    # Monitoring (optional - remove sentry if not needed)
-    # "sentry-sdk[fastapi]>=1.40.0",
+
+    # Structured logging
+    "structlog>=24.1.0",
+
+    # Config
+    "pyyaml>=6.0",
+
+    # Monitoring
+    "prometheus-client>=0.20.0",
+
+    # xAI / Grok (acknowledgments)
+    "openai>=1.10.0",
 ]
 
 [project.optional-dependencies]

@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # Anthropic (Haiku for evaluation)
     anthropic_haiku_model: str = "claude-haiku-4-20250414"
 
+    # xAI / Grok (acknowledgments)
+    xai_api_key: str = ""
+    xai_model: str = "grok-3-mini-fast-latest"
+
     # App Config
     environment: str = "development"
     api_host: str = "0.0.0.0"
@@ -30,7 +34,7 @@ class Settings(BaseSettings):
     max_iterations: int = 10
 
     # Retry settings
-    max_retry_count: int = 1
+    max_retry_count: int = 2
     relaxed_score_threshold: float = 0.25
 
     # Evaluation

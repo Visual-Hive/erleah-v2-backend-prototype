@@ -4,6 +4,7 @@
 Flow:
   START → fetch_data_parallel
     → [conditional: profile_needs_update?] → update_profile (or skip)
+    → generate_acknowledgment
     → plan_queries
     → execute_queries
     → check_results
@@ -23,11 +24,13 @@ from src.agent.nodes.check_results import check_results
 from src.agent.nodes.evaluate import evaluate
 from src.agent.nodes.execute_queries import execute_queries
 from src.agent.nodes.fetch_data import fetch_data_parallel
+from src.agent.nodes.generate_acknowledgment import generate_acknowledgment
 from src.agent.nodes.generate_response import generate_response
 from src.agent.nodes.plan_queries import plan_queries
 from src.agent.nodes.relax_and_retry import relax_and_retry
 from src.agent.nodes.update_profile import update_profile
 from src.agent.state import AssistantState
+from src.middleware.logging import trace_id_var
 
 logger = structlog.get_logger()
 
@@ -38,7 +41,7 @@ def should_update_profile(state: AssistantState) -> str:
     """Route to update_profile if the message contains profile info."""
     if state.get("profile_needs_update", False):
         return "update_profile"
-    return "plan_queries"
+    return "generate_acknowledgment"
 
 
 def should_retry(state: AssistantState) -> str:
@@ -55,6 +58,7 @@ graph_builder = StateGraph(AssistantState)
 # Add nodes
 graph_builder.add_node("fetch_data", fetch_data_parallel)
 graph_builder.add_node("update_profile", update_profile)
+graph_builder.add_node("generate_acknowledgment", generate_acknowledgment)
 graph_builder.add_node("plan_queries", plan_queries)
 graph_builder.add_node("execute_queries", execute_queries)
 graph_builder.add_node("check_results", check_results)
@@ -65,15 +69,18 @@ graph_builder.add_node("evaluate", evaluate)
 # Wire edges
 graph_builder.set_entry_point("fetch_data")
 
-# fetch_data → conditional → update_profile OR plan_queries
+# fetch_data → conditional → update_profile OR generate_acknowledgment
 graph_builder.add_conditional_edges(
     "fetch_data",
     should_update_profile,
-    {"update_profile": "update_profile", "plan_queries": "plan_queries"},
+    {"update_profile": "update_profile", "generate_acknowledgment": "generate_acknowledgment"},
 )
 
-# update_profile → plan_queries
-graph_builder.add_edge("update_profile", "plan_queries")
+# update_profile → generate_acknowledgment
+graph_builder.add_edge("update_profile", "generate_acknowledgment")
+
+# generate_acknowledgment → plan_queries
+graph_builder.add_edge("generate_acknowledgment", "plan_queries")
 
 # plan_queries → execute_queries
 graph_builder.add_edge("plan_queries", "execute_queries")
@@ -107,7 +114,7 @@ async def stream_agent_response(
     """Stream agent responses as SSE events.
 
     Event types:
-    - acknowledgment: sent immediately
+    - acknowledgment: sent immediately (basic), then contextual from Grok node
     - progress: sent when each node starts (node name)
     - chunk: streamed response tokens (only from generate_response node)
     - done: sent after generate_response completes (before evaluate finishes)
@@ -131,15 +138,18 @@ async def stream_agent_response(
         "referenced_ids": [],
         "quality_score": None,
         "confidence_score": None,
+        "acknowledgment_text": "",
+        "trace_id": trace_id_var.get(""),
         "error": None,
         "current_node": "",
     }
 
-    # Send acknowledgment immediately
+    # Send basic acknowledgment immediately
     yield {"event": "acknowledgment", "data": {"status": "processing"}}
 
     seen_nodes: set[str] = set()
     done_sent = False
+    ack_sent = False
 
     async for event in graph.astream_events(initial_state, version="v2"):
         kind = event["event"]
@@ -153,6 +163,22 @@ async def stream_agent_response(
                 "event": "progress",
                 "data": {"node": langgraph_node},
             }
+
+        # Send contextual acknowledgment when generate_acknowledgment finishes
+        if (
+            kind == "on_chain_end"
+            and langgraph_node == "generate_acknowledgment"
+            and not ack_sent
+        ):
+            ack_sent = True
+            # Extract ack text from the event output
+            output = event.get("data", {}).get("output", {})
+            ack_text = output.get("acknowledgment_text", "") if isinstance(output, dict) else ""
+            if ack_text:
+                yield {
+                    "event": "acknowledgment",
+                    "data": {"message": ack_text},
+                }
 
         # Stream tokens only from generate_response node
         if kind == "on_chat_model_stream" and langgraph_node == "generate_response":

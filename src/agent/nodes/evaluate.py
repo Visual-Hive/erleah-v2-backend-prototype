@@ -3,6 +3,7 @@
 import json
 
 import structlog
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import haiku
 from src.agent.prompts import EVALUATE_SYSTEM
@@ -48,8 +49,8 @@ async def evaluate(state: AssistantState) -> dict:
     try:
         result = await haiku.ainvoke(
             [
-                {"role": "system", "content": EVALUATE_SYSTEM},
-                {"role": "user", "content": eval_prompt},
+                SystemMessage(content=EVALUATE_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                HumanMessage(content=eval_prompt),
             ]
         )
 

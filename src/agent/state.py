@@ -48,6 +48,10 @@ class AssistantState(TypedDict):
     quality_score: float | None
     confidence_score: float | None
 
+    # --- generate_acknowledgment ---
+    acknowledgment_text: str
+
     # --- control ---
+    trace_id: str
     error: str | None
     current_node: str

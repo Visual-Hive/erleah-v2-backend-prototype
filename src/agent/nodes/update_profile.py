@@ -3,10 +3,12 @@
 import json
 
 import structlog
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import sonnet
 from src.agent.prompts import PROFILE_UPDATE_SYSTEM
 from src.agent.state import AssistantState
+from src.services.cache import get_cache_service, make_key
 from src.services.directus import get_directus_client
 
 logger = structlog.get_logger()
@@ -37,8 +39,8 @@ async def update_profile(state: AssistantState) -> dict:
         )
         result = await sonnet.ainvoke(
             [
-                {"role": "system", "content": PROFILE_UPDATE_SYSTEM},
-                {"role": "user", "content": update_prompt},
+                SystemMessage(content=PROFILE_UPDATE_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                HumanMessage(content=update_prompt),
             ]
         )
         updated_profile = json.loads(result.content)
@@ -46,6 +48,10 @@ async def update_profile(state: AssistantState) -> dict:
         # Persist to Directus
         client = get_directus_client()
         await client.update_user_profile(user_id, updated_profile)
+
+        # Invalidate profile cache
+        cache = get_cache_service()
+        await cache.delete(make_key("profile", user_id))
 
         logger.info("update_profile.done", updates=updated_profile)
         return {

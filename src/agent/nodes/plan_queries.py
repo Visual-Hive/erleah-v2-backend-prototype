@@ -3,6 +3,7 @@
 import json
 
 import structlog
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import sonnet
 from src.agent.prompts import PLAN_QUERIES_SYSTEM
@@ -37,8 +38,8 @@ async def plan_queries(state: AssistantState) -> dict:
     try:
         result = await sonnet.ainvoke(
             [
-                {"role": "system", "content": PLAN_QUERIES_SYSTEM},
-                {"role": "user", "content": plan_prompt},
+                SystemMessage(content=PLAN_QUERIES_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                HumanMessage(content=plan_prompt),
             ]
         )
 

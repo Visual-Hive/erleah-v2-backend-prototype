@@ -3,6 +3,7 @@
 import json
 
 import structlog
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import sonnet
 from src.agent.prompts import GENERATE_RESPONSE_SYSTEM
@@ -55,8 +56,8 @@ async def generate_response(state: AssistantState) -> dict:
         # Use ainvoke (streaming is handled by astream_events at the graph level)
         result = await sonnet.ainvoke(
             [
-                {"role": "system", "content": GENERATE_RESPONSE_SYSTEM},
-                {"role": "user", "content": generation_prompt},
+                SystemMessage(content=GENERATE_RESPONSE_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                HumanMessage(content=generation_prompt),
             ]
         )
 

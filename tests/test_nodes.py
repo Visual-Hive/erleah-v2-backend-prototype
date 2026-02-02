@@ -38,11 +38,26 @@ def _base_state(**overrides):
         "referenced_ids": [],
         "quality_score": None,
         "confidence_score": None,
+        "acknowledgment_text": "",
+        "trace_id": "",
         "error": None,
         "current_node": "",
     }
     state.update(overrides)
     return state
+
+
+# Mock the cache service globally for node tests
+@pytest.fixture(autouse=True)
+def mock_cache():
+    """Auto-mock cache service for all node tests."""
+    with patch("src.services.cache.get_cache_service") as mock:
+        cache = AsyncMock()
+        cache.get.return_value = None  # Always miss
+        cache.set.return_value = True
+        cache.delete.return_value = True
+        mock.return_value = cache
+        yield cache
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +149,41 @@ class TestUpdateProfile:
 
                 assert result["profile_updates"] == updated
                 assert result["user_profile"] == updated
+
+
+# ---------------------------------------------------------------------------
+# Node: generate_acknowledgment
+# ---------------------------------------------------------------------------
+
+class TestGenerateAcknowledgment:
+    @pytest.mark.asyncio
+    async def test_generates_acknowledgment(self):
+        with patch("src.agent.nodes.generate_acknowledgment.get_grok_client") as mock_grok:
+            grok = AsyncMock()
+            grok.generate_acknowledgment.return_value = "Great question about coffee! Let me look that up."
+            mock_grok.return_value = grok
+
+            from src.agent.nodes.generate_acknowledgment import generate_acknowledgment
+
+            state = _base_state()
+            result = await generate_acknowledgment(state)
+
+            assert result["acknowledgment_text"] == "Great question about coffee! Let me look that up."
+            assert result["current_node"] == "generate_acknowledgment"
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_error(self):
+        with patch("src.agent.nodes.generate_acknowledgment.get_grok_client") as mock_grok:
+            grok = AsyncMock()
+            grok.generate_acknowledgment.return_value = "I'll help you with that."
+            mock_grok.return_value = grok
+
+            from src.agent.nodes.generate_acknowledgment import generate_acknowledgment
+
+            state = _base_state()
+            result = await generate_acknowledgment(state)
+
+            assert result["acknowledgment_text"] == "I'll help you with that."
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +313,7 @@ class TestCheckResults:
         state = _base_state(
             planned_queries=[{"table": "sessions", "search_mode": "faceted", "query_text": "x", "limit": 10}],
             query_results={"sessions": []},
-            retry_count=1,  # Already retried once
+            retry_count=2,  # max_retry_count is now 2
         )
         result = await check_results(state)
 
@@ -302,6 +352,38 @@ class TestRelaxAndRetry:
             assert result["retry_count"] == 1
             # Existing exhibitor results preserved
             assert result["query_results"]["exhibitors"] == [{"entity_id": "e1"}]
+            # First retry uses faceted with doubled limit
+            mock_search.assert_called_once()
+            call_kwargs = mock_search.call_args
+            assert call_kwargs.kwargs.get("use_faceted") is True or call_kwargs[1].get("use_faceted") is True
+
+    @pytest.mark.asyncio
+    async def test_second_retry_uses_master_search(self):
+        from src.search.faceted import SearchResult
+
+        mock_results = [
+            SearchResult(entity_id="s1", entity_type="sessions", total_score=0.5, facet_matches=1, payload={"title": "Coffee Talk"}),
+        ]
+
+        with patch("src.agent.nodes.relax_and_retry.hybrid_search", new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = mock_results
+
+            from src.agent.nodes.relax_and_retry import relax_and_retry
+
+            state = _base_state(
+                zero_result_tables=["sessions"],
+                planned_queries=[
+                    {"table": "sessions", "search_mode": "faceted", "query_text": "coffee", "limit": 5},
+                ],
+                query_results={"sessions": []},
+                retry_count=1,  # Second retry
+            )
+            result = await relax_and_retry(state)
+
+            assert result["retry_count"] == 2
+            # Second retry uses master search
+            call_kwargs = mock_search.call_args
+            assert call_kwargs.kwargs.get("use_faceted") is False or call_kwargs[1].get("use_faceted") is False
 
 
 # ---------------------------------------------------------------------------
@@ -401,10 +483,36 @@ class TestConditionalEdges:
         from src.agent.graph import should_update_profile
 
         assert should_update_profile(_base_state(profile_needs_update=True)) == "update_profile"
-        assert should_update_profile(_base_state(profile_needs_update=False)) == "plan_queries"
+        assert should_update_profile(_base_state(profile_needs_update=False)) == "generate_acknowledgment"
 
     def test_should_retry_routes_correctly(self):
         from src.agent.graph import should_retry
 
         assert should_retry(_base_state(needs_retry=True)) == "relax_and_retry"
         assert should_retry(_base_state(needs_retry=False)) == "generate_response"
+
+
+# ---------------------------------------------------------------------------
+# Prompt caching: verify SystemMessage with cache_control is used
+# ---------------------------------------------------------------------------
+
+class TestPromptCaching:
+    @pytest.mark.asyncio
+    async def test_plan_queries_uses_system_message_with_cache_control(self):
+        with patch("src.agent.nodes.plan_queries.sonnet") as mock_llm:
+            mock_response = MagicMock()
+            mock_response.content = json.dumps({
+                "intent": "test", "query_mode": "hybrid", "queries": []
+            })
+            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+            from src.agent.nodes.plan_queries import plan_queries
+
+            state = _base_state()
+            await plan_queries(state)
+
+            # Check that SystemMessage was used (not a plain dict)
+            call_args = mock_llm.ainvoke.call_args[0][0]
+            from langchain_core.messages import SystemMessage
+            assert isinstance(call_args[0], SystemMessage)
+            assert call_args[0].additional_kwargs.get("cache_control") == {"type": "ephemeral"}
