@@ -1,6 +1,7 @@
 """Node 7: Claude Sonnet streaming response generation."""
 
 import json
+import re
 
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -10,6 +11,15 @@ from src.agent.prompts import GENERATE_RESPONSE_SYSTEM
 from src.agent.state import AssistantState
 
 logger = structlog.get_logger()
+
+
+def _extract_mentioned_ids(response_text: str, all_ids: list[str]) -> list[str]:
+    """Extract only entity IDs that are actually mentioned in the response text."""
+    mentioned = []
+    for eid in all_ids:
+        if eid in response_text:
+            mentioned.append(eid)
+    return mentioned
 
 
 async def generate_response(state: AssistantState) -> dict:
@@ -37,10 +47,17 @@ async def generate_response(state: AssistantState) -> dict:
         recent = history[-3:]
         context_parts.append(f"Recent conversation: {json.dumps(recent, default=str)}")
 
+    # Collect all entity IDs from results
+    all_entity_ids = []
+
     # Format search results
     if query_results:
         for table, results in query_results.items():
             if results:
+                for r in results:
+                    eid = r.get("entity_id")
+                    if eid:
+                        all_entity_ids.append(eid)
                 context_parts.append(
                     f"\nSearch results for '{table}' ({len(results)} results):\n"
                     f"{json.dumps(results[:10], default=str, indent=2)}"
@@ -63,15 +80,10 @@ async def generate_response(state: AssistantState) -> dict:
 
         response_text = result.content
 
-        # Extract referenced entity IDs from results
-        referenced_ids = []
-        for results in query_results.values():
-            for r in results:
-                eid = r.get("entity_id")
-                if eid:
-                    referenced_ids.append(eid)
+        # Extract only entity IDs that are actually mentioned in the response
+        referenced_ids = _extract_mentioned_ids(response_text, all_entity_ids)
 
-        logger.info("generate_response.done", response_length=len(response_text))
+        logger.info("generate_response.done", response_length=len(response_text), referenced_ids_count=len(referenced_ids))
 
         return {
             "response_text": response_text,

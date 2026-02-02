@@ -2,6 +2,7 @@ import httpx
 import structlog
 from typing import Any
 from src.config import settings
+from src.services.resilience import async_retry, get_circuit_breaker
 
 logger = structlog.get_logger()
 
@@ -16,25 +17,30 @@ class DirectusClient:
         self._client = httpx.AsyncClient(
             base_url=self.base_url, headers=self.headers, timeout=30.0
         )
+        self._breaker = get_circuit_breaker("directus")
 
     # --- Conversation / Message Handling ---
 
+    @async_retry(max_retries=2, base_delay=0.5, exceptions=(httpx.HTTPError, httpx.ConnectError))
     async def get_conversation_context(
         self, conversation_id: str, limit: int = 10
     ) -> list[dict]:
         """Fetch recent messages."""
-        response = await self._client.get(
-            "/items/messages",
-            params={
-                "filter[conversation_id][_eq]": conversation_id,
-                "sort": "-date_created",
-                "limit": limit,
-                "fields": "role,messageText",
-            },
-        )
-        response.raise_for_status()
-        data = response.json().get("data", [])
-        return list(reversed(data))  # Chronological order
+        async def _fetch():
+            response = await self._client.get(
+                "/items/messages",
+                params={
+                    "filter[conversation_id][_eq]": conversation_id,
+                    "sort": "-date_created",
+                    "limit": limit,
+                    "fields": "role,messageText",
+                },
+            )
+            response.raise_for_status()
+            data = response.json().get("data", [])
+            return list(reversed(data))  # Chronological order
+
+        return await self._breaker.call(_fetch)
 
     async def create_assistant_message(self, conversation_id: str) -> str:
         """Create a placeholder message for the assistant (status=streaming)."""
@@ -68,27 +74,35 @@ class DirectusClient:
 
     # --- User Profile ---
 
+    @async_retry(max_retries=2, base_delay=0.5, exceptions=(httpx.HTTPError, httpx.ConnectError))
     async def get_user_profile(self, user_id: str) -> dict[str, Any]:
         """Fetch user profile by ID."""
-        try:
+        async def _fetch():
             response = await self._client.get(
                 f"/items/user_profiles/{user_id}",
             )
             response.raise_for_status()
             return response.json().get("data", {})
+
+        try:
+            return await self._breaker.call(_fetch)
         except Exception as e:
             logger.warning("Failed to fetch user profile", user_id=user_id, error=str(e))
             return {}
 
+    @async_retry(max_retries=2, base_delay=0.5, exceptions=(httpx.HTTPError, httpx.ConnectError))
     async def update_user_profile(self, user_id: str, updates: dict[str, Any]) -> bool:
         """Update user profile fields."""
-        try:
+        async def _update():
             response = await self._client.patch(
                 f"/items/user_profiles/{user_id}",
                 json=updates,
             )
             response.raise_for_status()
             return True
+
+        try:
+            return await self._breaker.call(_update)
         except Exception as e:
             logger.warning("Failed to update user profile", user_id=user_id, error=str(e))
             return False

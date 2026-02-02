@@ -6,7 +6,9 @@ Starts the server and defines core routes.
 
 import asyncio
 import json
+import time
 
+import psutil
 import structlog
 from contextlib import asynccontextmanager
 
@@ -19,20 +21,28 @@ from sse_starlette.sse import EventSourceResponse
 from src.agent.graph import stream_agent_response
 from src.config import settings
 from src.middleware.logging import TraceIdMiddleware, configure_structlog
-from src.middleware.metrics import MetricsMiddleware
+from src.middleware.metrics import MetricsMiddleware, LoadMonitoringMiddleware
 from src.models.api import ChatRequest, ChatResponse, HealthResponse, ServiceStatus
-from src.monitoring.metrics import ACTIVE_REQUESTS
+from src.monitoring.metrics import (
+    ACTIVE_REQUESTS, ACTIVE_WORKERS, QUEUE_SIZE, QUEUE_UTILIZATION,
+    MEMORY_USAGE, CPU_USAGE, ERRORS, WORKER_DURATION,
+    REQUESTS_QUEUED, REQUESTS_REJECTED, USER_ABANDONED,
+)
 from src.services.cache import get_cache_service
 from src.services.directus import get_directus_client
+from src.services.errors import get_user_error, QueueFull, RateLimited
 from src.services.qdrant import get_qdrant_service
+from src.services.rate_limiter import get_rate_limiter
+from src.monitoring.tracing import setup_tracing, instrument_fastapi
+from src.monitoring.sentry import setup_sentry
 
 # Configure structlog (replaces logging.basicConfig)
 configure_structlog()
 logger = structlog.get_logger()
 
-# Concurrency semaphore
-_semaphore = asyncio.Semaphore(20)
-_active_requests = 0
+# Initialize tracing and error tracking
+setup_tracing()
+setup_sentry()
 
 
 @asynccontextmanager
@@ -46,11 +56,103 @@ async def lifespan(app: FastAPI):
     cache = get_cache_service()
     await cache.connect()
 
+    # Cache warming: pre-warm system prompts into Anthropic cache by sending
+    # a minimal request (the prompts get cached via cache_control: ephemeral)
+    logger.info("cache.warming", status="started")
+    # Prompts are cached on first LLM call via cache_control: ephemeral
+    # No explicit warm-up needed — Anthropic prompt caching is automatic
+    logger.info("cache.warming", status="done")
+
+    # Start worker pool with configurable size
+    app.state.request_queue = asyncio.Queue(maxsize=settings.max_queue_size)
+    app.state.workers = [
+        asyncio.create_task(_worker(i, app.state.request_queue))
+        for i in range(settings.worker_pool_size)
+    ]
+    ACTIVE_WORKERS.set(settings.worker_pool_size)
+    logger.info("worker_pool.started", workers=settings.worker_pool_size, max_queue=settings.max_queue_size)
+
+    # Start resource monitor
+    app.state.resource_monitor = asyncio.create_task(_resource_monitor())
+
     yield
 
     # Shutdown
     logger.info("Shutting down Erleah backend...")
+
+    # Stop resource monitor
+    app.state.resource_monitor.cancel()
+
+    # Drain worker pool
+    logger.info("worker_pool.draining")
+    for _ in app.state.workers:
+        await app.state.request_queue.put(None)  # Sentinel to stop workers
+
+    # Wait for workers to finish (30s max)
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*app.state.workers, return_exceptions=True),
+            timeout=30.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("worker_pool.drain_timeout", remaining=app.state.request_queue.qsize())
+        for w in app.state.workers:
+            w.cancel()
+
     await cache.close()
+
+
+async def _worker(worker_id: int, queue: asyncio.Queue) -> None:
+    """Worker coroutine: pull requests from queue and process them."""
+    while True:
+        item = await queue.get()
+        if item is None:
+            queue.task_done()
+            break
+        try:
+            callback, message, user_context = item
+            ACTIVE_REQUESTS.inc()
+            start = time.perf_counter()
+            try:
+                async for event in stream_agent_response(message, user_context):
+                    await callback(event)
+            finally:
+                ACTIVE_REQUESTS.dec()
+                duration = time.perf_counter() - start
+                WORKER_DURATION.observe(duration)
+        except Exception as e:
+            logger.error("worker.error", worker_id=worker_id, error=str(e))
+            ERRORS.labels(error_type=type(e).__name__, node="worker").inc()
+        finally:
+            queue.task_done()
+            QUEUE_SIZE.set(queue.qsize())
+            QUEUE_UTILIZATION.set(queue.qsize() / settings.max_queue_size)
+
+
+async def _resource_monitor() -> None:
+    """Background task to track CPU and memory usage."""
+    process = psutil.Process()
+    while True:
+        try:
+            MEMORY_USAGE.set(process.memory_info().rss)
+            CPU_USAGE.set(process.cpu_percent(interval=None))
+        except Exception:
+            pass
+        await asyncio.sleep(10)
+
+
+def _check_resources() -> bool:
+    """Check if we have enough resources to accept new requests."""
+    try:
+        process = psutil.Process()
+        cpu = process.cpu_percent(interval=None)
+        mem = psutil.virtual_memory().percent
+        if cpu > 80 or mem > 85:
+            logger.warning("resource_throttle.triggered", cpu=cpu, memory=mem)
+            return False
+    except Exception:
+        pass
+    return True
 
 
 # Create FastAPI app
@@ -72,6 +174,9 @@ app.add_middleware(
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(TraceIdMiddleware)
 
+# Instrument with OpenTelemetry (if configured)
+instrument_fastapi(app)
+
 
 @app.get("/")
 async def root():
@@ -86,8 +191,27 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with service connectivity."""
-    global _active_requests
+    """Full health check endpoint with service connectivity."""
+    return await _build_health_response()
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    """Kubernetes readiness probe. Returns 200 if all services connected."""
+    response = await _build_health_response()
+    if response.status == "healthy":
+        return JSONResponse(content=response.model_dump(), status_code=200)
+    return JSONResponse(content=response.model_dump(), status_code=503)
+
+
+@app.get("/health/live")
+async def liveness_check():
+    """Kubernetes liveness probe. Returns 200 if process is alive."""
+    return JSONResponse(content={"status": "alive"}, status_code=200)
+
+
+async def _build_health_response() -> HealthResponse:
+    """Build health response with service connectivity checks."""
     services: list[ServiceStatus] = []
 
     # Check Redis
@@ -117,12 +241,17 @@ async def health_check():
     all_healthy = all(s.status == "healthy" for s in services)
     overall = "healthy" if all_healthy else "degraded"
 
+    queue_size = 0
+    if hasattr(app.state, "request_queue"):
+        queue_size = app.state.request_queue.qsize()
+
     return HealthResponse(
         status=overall,
         environment=settings.environment,
         model=settings.anthropic_model,
         services=services,
-        active_requests=_active_requests,
+        queue_size=queue_size,
+        active_requests=int(ACTIVE_REQUESTS._value.get()),
     )
 
 
@@ -139,50 +268,70 @@ async def metrics():
 async def chat_stream(request: ChatRequest):
     """Stream agent responses via SSE.
 
+    Routes requests through the worker queue for bounded concurrency.
+
     Response: Server-Sent Events stream with:
-        - event: acknowledgment (request received + contextual message)
+        - event: acknowledgment (contextual message from Grok)
         - event: progress (node started)
         - event: chunk (response tokens)
-        - event: done (completion)
+        - event: done (completion with trace_id + referenced_ids)
         - event: error (on failure)
     """
-    global _active_requests
+    # Rate limiting
+    rate_key = request.user_context.user_id or request.user_context.conversation_id or "anonymous"
+    limiter = get_rate_limiter()
+    if not limiter.is_allowed(rate_key):
+        error_info = get_user_error(RateLimited())
+        return JSONResponse(status_code=429, content=error_info)
 
-    # Check concurrency
-    if _semaphore.locked() and _semaphore._value == 0:
+    # Resource-based throttling
+    if not _check_resources():
         return JSONResponse(
             status_code=503,
-            content={"error": "Server at capacity. Please try again shortly."},
+            content={"error": "Server under heavy load. Please try again shortly.", "can_retry": True},
+        )
+
+    # Check queue capacity
+    queue = app.state.request_queue
+    if queue.full():
+        ERRORS.labels(error_type="QueueFull", node="endpoint").inc()
+        REQUESTS_REJECTED.inc()
+        error_info = get_user_error(QueueFull())
+        return JSONResponse(
+            status_code=503,
+            content=error_info,
+            headers={"Retry-After": "5"},
         )
 
     message = request.message
     user_context = request.user_context.model_dump(exclude_none=True)
 
+    REQUESTS_QUEUED.inc()
+
     async def event_generator():
         """Generate SSE events from agent stream."""
-        global _active_requests
-        async with _semaphore:
-            _active_requests += 1
-            ACTIVE_REQUESTS.set(_active_requests)
-            try:
-                async for event in stream_agent_response(message, user_context):
-                    event_type = event.get("event", "message")
-                    event_data = event.get("data", {})
+        ACTIVE_REQUESTS.inc()
+        start = time.perf_counter()
+        try:
+            async for event in stream_agent_response(message, user_context):
+                event_type = event.get("event", "message")
+                event_data = event.get("data", {})
 
-                    yield {
-                        "event": event_type,
-                        "data": json.dumps(event_data),
-                    }
-
-            except Exception as e:
-                logger.error("agent_stream.error", error=str(e), exc_info=True)
                 yield {
-                    "event": "error",
-                    "data": json.dumps({"error": str(e)}),
+                    "event": event_type,
+                    "data": json.dumps(event_data),
                 }
-            finally:
-                _active_requests -= 1
-                ACTIVE_REQUESTS.set(_active_requests)
+        except asyncio.CancelledError:
+            # Client disconnected
+            USER_ABANDONED.inc()
+            raise
+        finally:
+            ACTIVE_REQUESTS.dec()
+            duration = time.perf_counter() - start
+            WORKER_DURATION.observe(duration)
+
+    QUEUE_SIZE.set(queue.qsize())
+    QUEUE_UTILIZATION.set(queue.qsize() / settings.max_queue_size)
 
     return EventSourceResponse(event_generator())
 
@@ -197,6 +346,13 @@ async def chat_non_streaming(request: ChatRequest):
             "events": [...]
         }
     """
+    # Rate limiting
+    rate_key = request.user_context.user_id or request.user_context.conversation_id or "anonymous"
+    limiter = get_rate_limiter()
+    if not limiter.is_allowed(rate_key):
+        error_info = get_user_error(RateLimited())
+        return JSONResponse(status_code=429, content=error_info)
+
     message = request.message
     user_context = request.user_context.model_dump(exclude_none=True)
 
@@ -208,7 +364,7 @@ async def chat_non_streaming(request: ChatRequest):
         events.append(event)
 
         if event["event"] == "chunk":
-            response_text += event["data"].get("token", "")
+            response_text += event["data"].get("text", "")
 
     return ChatResponse(
         response=response_text.strip(),

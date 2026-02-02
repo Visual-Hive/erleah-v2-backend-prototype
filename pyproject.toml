@@ -45,6 +45,18 @@ dependencies = [
 
     # xAI / Grok (acknowledgments)
     "openai>=1.10.0",
+
+    # System monitoring
+    "psutil>=5.9.0",
+
+    # Distributed tracing
+    "opentelemetry-api>=1.22.0",
+    "opentelemetry-sdk>=1.22.0",
+    "opentelemetry-instrumentation-fastapi>=0.43b0",
+    "opentelemetry-exporter-otlp>=1.22.0",
+
+    # Error tracking
+    "sentry-sdk[fastapi]>=1.40.0",
 ]
 
 [project.optional-dependencies]
@@ -55,6 +67,7 @@ dev = [
     "black>=23.12.1",
     "ruff>=0.1.11",
     "mypy>=1.8.0",
+    "locust>=2.20.0",
 ]
 
 [build-system]
@@ -63,12 +76,12 @@ build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 88
-target-version = ["py311"]
+target-version = ["py312"]
 include = '\.pyi?$'
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -92,7 +105,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

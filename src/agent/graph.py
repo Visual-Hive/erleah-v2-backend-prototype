@@ -1,5 +1,5 @@
 """
-8-node LangGraph pipeline for the Erleah conference assistant.
+9-node LangGraph pipeline for the Erleah conference assistant.
 
 Flow:
   START → fetch_data_parallel
@@ -14,6 +14,9 @@ Flow:
     → END
 """
 
+import asyncio
+import json
+import time
 from typing import AsyncGenerator
 
 import structlog
@@ -31,8 +34,17 @@ from src.agent.nodes.relax_and_retry import relax_and_retry
 from src.agent.nodes.update_profile import update_profile
 from src.agent.state import AssistantState
 from src.middleware.logging import trace_id_var
+from src.monitoring.metrics import (
+    LLM_TOKENS, LLM_DURATION, LLM_CALLS, ERRORS,
+    TIME_TO_FIRST_FEEDBACK, TIME_TO_FIRST_CHUNK,
+    USER_ABANDONED,
+)
+from src.services.cache import get_cache_service
+from src.services.errors import WorkflowTimeout, get_user_error
 
 logger = structlog.get_logger()
+
+WORKFLOW_TIMEOUT = 30.0  # seconds
 
 
 # --- Conditional edges ---
@@ -108,18 +120,84 @@ graph_builder.add_edge("evaluate", END)
 graph = graph_builder.compile()
 
 
+# --- Progress messages for user-friendly UX ---
+
+PROGRESS_MESSAGES = {
+    "fetch_data": "Loading your profile...",
+    "update_profile": "Updating your profile...",
+    "generate_acknowledgment": None,  # Handled separately
+    "plan_queries": "Planning search strategy...",
+    "execute_queries": "Searching databases...",
+    "check_results": "Analyzing results...",
+    "relax_and_retry": "No exact matches found. Expanding search...",
+    "generate_response": "Preparing recommendations...",
+    "evaluate": None,  # Runs after done
+}
+
+
+def _track_llm_usage(event: dict) -> None:
+    """Extract and record LLM token usage from astream_events."""
+    if event["event"] != "on_chat_model_end":
+        return
+    output = event.get("data", {}).get("output")
+    if not output:
+        return
+
+    usage = getattr(output, "usage_metadata", None)
+    if not usage:
+        # Try response_metadata
+        resp_meta = getattr(output, "response_metadata", None)
+        if resp_meta:
+            usage = resp_meta.get("usage")
+
+    if not usage:
+        return
+
+    # Determine model from event
+    metadata = event.get("metadata", {})
+    node = metadata.get("langgraph_node", "unknown")
+    model = "unknown"
+    if hasattr(output, "response_metadata"):
+        model = output.response_metadata.get("model", "unknown")
+
+    # Extract token counts (LangChain usage_metadata format)
+    if isinstance(usage, dict):
+        input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
+        cached_tokens = usage.get("cache_read_input_tokens", 0) or usage.get("cache_creation_input_tokens", 0)
+    else:
+        input_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+        output_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+        cached_tokens = getattr(usage, "cache_read_input_tokens", 0)
+
+    if input_tokens:
+        LLM_TOKENS.labels(model=model, token_type="input").inc(input_tokens)
+    if output_tokens:
+        LLM_TOKENS.labels(model=model, token_type="output").inc(output_tokens)
+    if cached_tokens:
+        LLM_TOKENS.labels(model=model, token_type="cached").inc(cached_tokens)
+
+    LLM_CALLS.labels(model=model, node=node).inc()
+
+
 async def stream_agent_response(
     message: str, user_context: dict
 ) -> AsyncGenerator[dict, None]:
-    """Stream agent responses as SSE events.
+    """Stream agent responses as SSE events with 30s timeout.
 
     Event types:
-    - acknowledgment: sent immediately (basic), then contextual from Grok node
-    - progress: sent when each node starts (node name)
+    - acknowledgment: contextual acknowledgment from Grok node
+    - progress: sent when each node starts (node name + user-friendly message)
     - chunk: streamed response tokens (only from generate_response node)
-    - done: sent after generate_response completes (before evaluate finishes)
+    - done: sent after generate_response completes (includes trace_id + referenced_ids)
     - error: sent on failures
     """
+    request_start = time.perf_counter()
+    first_feedback_sent = False
+    first_chunk_sent = False
+
+    trace_id = trace_id_var.get("")
+
     initial_state: AssistantState = {
         "messages": [HumanMessage(content=message)],
         "user_context": user_context,
@@ -127,6 +205,7 @@ async def stream_agent_response(
         "conversation_history": [],
         "profile_needs_update": False,
         "profile_updates": None,
+        "profile_updated": False,
         "intent": "",
         "query_mode": None,
         "planned_queries": [],
@@ -134,75 +213,142 @@ async def stream_agent_response(
         "zero_result_tables": [],
         "retry_count": 0,
         "needs_retry": False,
+        "retry_metadata": None,
         "response_text": "",
         "referenced_ids": [],
+        "progress_updates": [],
         "quality_score": None,
         "confidence_score": None,
+        "evaluation": None,
         "acknowledgment_text": "",
-        "trace_id": trace_id_var.get(""),
+        "trace_id": trace_id,
+        "started_at": time.time(),
+        "completed_at": None,
         "error": None,
+        "error_node": None,
         "current_node": "",
     }
-
-    # Send basic acknowledgment immediately
-    yield {"event": "acknowledgment", "data": {"status": "processing"}}
 
     seen_nodes: set[str] = set()
     done_sent = False
     ack_sent = False
+    referenced_ids: list[str] = []
 
-    async for event in graph.astream_events(initial_state, version="v2"):
-        kind = event["event"]
-        metadata = event.get("metadata", {})
-        langgraph_node = metadata.get("langgraph_node", "")
+    # Publish progress to Redis for multi-instance visibility
+    cache = get_cache_service()
 
-        # Send progress events when a new node starts
-        if langgraph_node and langgraph_node not in seen_nodes:
-            seen_nodes.add(langgraph_node)
-            yield {
-                "event": "progress",
-                "data": {"node": langgraph_node},
-            }
+    try:
+        async for event in _stream_with_timeout(initial_state):
+            kind = event["event"]
+            metadata = event.get("metadata", {})
+            langgraph_node = metadata.get("langgraph_node", "")
 
-        # Send contextual acknowledgment when generate_acknowledgment finishes
-        if (
-            kind == "on_chain_end"
-            and langgraph_node == "generate_acknowledgment"
-            and not ack_sent
-        ):
-            ack_sent = True
-            # Extract ack text from the event output
-            output = event.get("data", {}).get("output", {})
-            ack_text = output.get("acknowledgment_text", "") if isinstance(output, dict) else ""
-            if ack_text:
+            # Track LLM token usage
+            _track_llm_usage(event)
+
+            # Send progress events when a new node starts
+            if langgraph_node and langgraph_node not in seen_nodes:
+                seen_nodes.add(langgraph_node)
+                progress_msg = PROGRESS_MESSAGES.get(langgraph_node)
+
+                if not first_feedback_sent:
+                    first_feedback_sent = True
+                    TIME_TO_FIRST_FEEDBACK.observe(time.perf_counter() - request_start)
+
                 yield {
-                    "event": "acknowledgment",
-                    "data": {"message": ack_text},
+                    "event": "progress",
+                    "data": {"node": langgraph_node, "message": progress_msg},
+                }
+                # Publish to Redis pub/sub
+                await cache.publish(
+                    f"progress:{trace_id}",
+                    json.dumps({"node": langgraph_node, "message": progress_msg}),
+                )
+
+            # Send contextual acknowledgment when generate_acknowledgment finishes
+            if (
+                kind == "on_chain_end"
+                and langgraph_node == "generate_acknowledgment"
+                and not ack_sent
+            ):
+                ack_sent = True
+                output = event.get("data", {}).get("output", {})
+                ack_text = output.get("acknowledgment_text", "") if isinstance(output, dict) else ""
+                if ack_text:
+                    yield {
+                        "event": "acknowledgment",
+                        "data": {"message": ack_text},
+                    }
+
+            # Capture referenced_ids when generate_response finishes
+            if (
+                kind == "on_chain_end"
+                and langgraph_node == "generate_response"
+            ):
+                output = event.get("data", {}).get("output", {})
+                if isinstance(output, dict):
+                    referenced_ids = output.get("referenced_ids", [])
+
+            # Stream tokens only from generate_response node
+            if kind == "on_chat_model_stream" and langgraph_node == "generate_response":
+                chunk = event["data"].get("chunk")
+                if chunk and chunk.content:
+                    content = chunk.content
+                    if isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                text = block.get("text", "")
+                                if text:
+                                    if not first_chunk_sent:
+                                        first_chunk_sent = True
+                                        TIME_TO_FIRST_CHUNK.observe(time.perf_counter() - request_start)
+                                    yield {"event": "chunk", "data": {"text": text}}
+                    elif isinstance(content, str):
+                        if not first_chunk_sent:
+                            first_chunk_sent = True
+                            TIME_TO_FIRST_CHUNK.observe(time.perf_counter() - request_start)
+                        yield {"event": "chunk", "data": {"text": content}}
+
+            # Detect when generate_response finishes → send done before evaluate
+            if (
+                kind == "on_chain_end"
+                and langgraph_node == "generate_response"
+                and not done_sent
+            ):
+                done_sent = True
+                yield {
+                    "event": "done",
+                    "data": {
+                        "trace_id": trace_id,
+                        "referenced_ids": referenced_ids,
+                    },
                 }
 
-        # Stream tokens only from generate_response node
-        if kind == "on_chat_model_stream" and langgraph_node == "generate_response":
-            chunk = event["data"].get("chunk")
-            if chunk and chunk.content:
-                content = chunk.content
-                if isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            text = block.get("text", "")
-                            if text:
-                                yield {"event": "chunk", "data": {"token": text}}
-                elif isinstance(content, str):
-                    yield {"event": "chunk", "data": {"token": content}}
-
-        # Detect when generate_response finishes → send done before evaluate
-        if (
-            kind == "on_chain_end"
-            and langgraph_node == "generate_response"
-            and not done_sent
-        ):
-            done_sent = True
-            yield {"event": "done", "data": {}}
+    except asyncio.TimeoutError:
+        ERRORS.labels(error_type="WorkflowTimeout", node="pipeline").inc()
+        error_info = get_user_error(WorkflowTimeout())
+        yield {"event": "error", "data": error_info}
+    except Exception as e:
+        ERRORS.labels(error_type=type(e).__name__, node="pipeline").inc()
+        error_info = get_user_error(e)
+        yield {"event": "error", "data": error_info}
 
     # Fallback: if done was never sent (e.g. error path), send it now
     if not done_sent:
-        yield {"event": "done", "data": {}}
+        yield {
+            "event": "done",
+            "data": {
+                "trace_id": trace_id,
+                "referenced_ids": referenced_ids,
+            },
+        }
+
+
+async def _stream_with_timeout(initial_state: AssistantState):
+    """Wrap graph.astream_events with a 30s workflow timeout."""
+    deadline = time.monotonic() + WORKFLOW_TIMEOUT
+
+    async for event in graph.astream_events(initial_state, version="v2"):
+        if time.monotonic() > deadline:
+            raise asyncio.TimeoutError("Workflow exceeded 30s timeout")
+        yield event

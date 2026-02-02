@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-assistant
+  labels:
+    app: assistant
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: assistant
+  template:
+    metadata:
+      labels:
+        app: assistant
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: assistant
+        image: erleah/central-assistant:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: assistant-secrets
+              key: redis-url
+        - name: QDRANT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: assistant-config
+              key: qdrant-url
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: assistant-secrets
+              key: anthropic-key
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: assistant-secrets
+              key: openai-key
+        - name: XAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: assistant-secrets
+              key: xai-key
+        - name: WORKER_POOL_SIZE
+          value: "20"
+        - name: MAX_QUEUE_SIZE
+          value: "100"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10

@@ -1,4 +1,4 @@
-"""YAML-based facet configuration with weights."""
+"""YAML-based facet configuration with weights and paired matching."""
 
 from functools import lru_cache
 from pathlib import Path
@@ -10,6 +10,8 @@ from pydantic import BaseModel
 class FacetDefinition(BaseModel):
     key: str
     weight: float
+    pair_with: str | None = None  # Complementary facet for buyer↔seller matching
+    description: str = ""  # Human-readable description of what this facet represents
 
 
 class EntityFacetConfig(BaseModel):
@@ -24,6 +26,26 @@ class EntityFacetConfig(BaseModel):
             if f.key == key:
                 return f.weight
         return 0.5  # Default weight for unknown facets
+
+    def get_pair(self, key: str) -> str | None:
+        """Get the paired facet key for buyer↔seller matching."""
+        for f in self.facets:
+            if f.key == key:
+                return f.pair_with
+        return None
+
+    def get_facet_keys(self) -> list[str]:
+        """Return all facet keys in order."""
+        return [f.key for f in self.facets]
+
+    def count_non_empty_facets(self, profile_facets: dict[str, str]) -> int:
+        """Count facets that have non-empty values (>= 10 chars) in the profile."""
+        count = 0
+        for f in self.facets:
+            value = profile_facets.get(f.key, "")
+            if value and len(value) >= 10:
+                count += 1
+        return count
 
 
 @lru_cache(maxsize=1)

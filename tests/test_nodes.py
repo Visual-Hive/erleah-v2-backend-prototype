@@ -27,6 +27,7 @@ def _base_state(**overrides):
         "conversation_history": [],
         "profile_needs_update": False,
         "profile_updates": None,
+        "profile_updated": False,
         "intent": "",
         "query_mode": None,
         "planned_queries": [],
@@ -34,13 +35,19 @@ def _base_state(**overrides):
         "zero_result_tables": [],
         "retry_count": 0,
         "needs_retry": False,
+        "retry_metadata": None,
         "response_text": "",
         "referenced_ids": [],
+        "progress_updates": [],
         "quality_score": None,
         "confidence_score": None,
+        "evaluation": None,
         "acknowledgment_text": "",
         "trace_id": "",
+        "started_at": 0.0,
+        "completed_at": None,
         "error": None,
+        "error_node": None,
         "current_node": "",
     }
     state.update(overrides)
@@ -395,7 +402,8 @@ class TestGenerateResponse:
     async def test_generates_response_from_results(self):
         with patch("src.agent.nodes.generate_response.sonnet") as mock_llm:
             mock_response = MagicMock()
-            mock_response.content = "You can find free coffee at Coffee Co booth A12!"
+            # Response must contain the entity_id for _extract_mentioned_ids to find it
+            mock_response.content = "You can find free coffee at Coffee Co (e1) booth A12!"
             mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
             from src.agent.nodes.generate_response import generate_response

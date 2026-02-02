@@ -1,23 +1,33 @@
 version: '3.8'
 
 services:
-  # PostgreSQL database
-  postgres:
-    image: postgres:15-alpine
-    container_name: erleah-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: erleah
+  # Erleah assistant API
+  assistant:
+    build: .
+    container_name: erleah-assistant
     ports:
-      - "5432:5432"
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - QDRANT_URL=http://qdrant:6333
+      - REDIS_URL=redis://redis:6379
+      - DIRECTUS_URL=${DIRECTUS_URL}
+      - DIRECTUS_TOKEN=${DIRECTUS_TOKEN}
+      - LOG_LEVEL=DEBUG
+      - WORKER_POOL_SIZE=5
+      - MAX_QUEUE_SIZE=20
+      - ENVIRONMENT=development
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./src:/app/src  # Hot reload
+      - ./config:/app/config
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Qdrant vector database
   qdrant:
@@ -49,31 +59,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # API (optional - for full containerized setup)
-  # Uncomment this section to run the API in Docker
-  # api:
-  #   build: .
-  #   container_name: erleah-api
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-  #     - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/erleah
-  #     - QDRANT_URL=http://qdrant:6333
-  #     - REDIS_URL=redis://redis:6379
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     qdrant:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ./src:/app/src
-  #     - ./.env:/app/.env
-  #   command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-
 volumes:
-  postgres_data:
   qdrant_data:
   redis_data:

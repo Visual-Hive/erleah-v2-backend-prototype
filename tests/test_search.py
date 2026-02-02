@@ -8,9 +8,10 @@ from src.search.facet_config import FacetDefinition, EntityFacetConfig, load_fac
 
 class TestFacetConfig:
     def test_facet_definition(self):
-        fd = FacetDefinition(key="what_we_sell", weight=1.0)
-        assert fd.key == "what_we_sell"
-        assert fd.weight == 1.0
+        fd = FacetDefinition(key="what_they_sell", weight=1.5, description="Products and services offered")
+        assert fd.key == "what_they_sell"
+        assert fd.weight == 1.5
+        assert fd.description == "Products and services offered"
 
     def test_entity_facet_config_total_facets(self):
         config = EntityFacetConfig(facets=[
@@ -22,11 +23,11 @@ class TestFacetConfig:
 
     def test_get_weight_known_key(self):
         config = EntityFacetConfig(facets=[
-            FacetDefinition(key="what_we_sell", weight=1.0),
-            FacetDefinition(key="problems_we_solve", weight=0.9),
+            FacetDefinition(key="what_they_sell", weight=1.5),
+            FacetDefinition(key="who_they_target", weight=1.2),
         ])
-        assert config.get_weight("what_we_sell") == 1.0
-        assert config.get_weight("problems_we_solve") == 0.9
+        assert config.get_weight("what_they_sell") == 1.5
+        assert config.get_weight("who_they_target") == 1.2
 
     def test_get_weight_unknown_key_returns_default(self):
         config = EntityFacetConfig(facets=[
@@ -56,6 +57,64 @@ class TestFacetConfig:
         load_facet_config.cache_clear()
         config = load_facet_config()
         assert config["speakers"].total_facets == 5
+
+    def test_attendees_has_eight_facets(self):
+        load_facet_config.cache_clear()
+        config = load_facet_config()
+        assert "attendees" in config
+        assert config["attendees"].total_facets == 8
+
+    def test_attendee_paired_facets(self):
+        """Attendee facets should have pair_with fields for buyer/seller matching."""
+        load_facet_config.cache_clear()
+        config = load_facet_config()
+        attendees = config["attendees"]
+
+        # Check specific pairs
+        sell_facet = next(f for f in attendees.facets if f.key == "products_i_want_to_sell")
+        buy_facet = next(f for f in attendees.facets if f.key == "products_i_want_to_buy")
+        assert sell_facet.pair_with == "products_i_want_to_buy"
+        assert buy_facet.pair_with == "products_i_want_to_sell"
+
+        who_i_am = next(f for f in attendees.facets if f.key == "who_i_am")
+        who_looking = next(f for f in attendees.facets if f.key == "who_im_looking_for")
+        assert who_i_am.pair_with == "who_im_looking_for"
+        assert who_looking.pair_with == "who_i_am"
+
+    def test_get_pair_returns_paired_key(self):
+        load_facet_config.cache_clear()
+        config = load_facet_config()
+        attendees = config["attendees"]
+        assert attendees.get_pair("products_i_want_to_sell") == "products_i_want_to_buy"
+        assert attendees.get_pair("who_i_am") == "who_im_looking_for"
+
+    def test_get_pair_returns_none_for_unpaired(self):
+        """Non-attendee facets have no pairs."""
+        load_facet_config.cache_clear()
+        config = load_facet_config()
+        exhibitors = config["exhibitors"]
+        assert exhibitors.get_pair("what_they_sell") is None
+
+    def test_get_facet_keys(self):
+        load_facet_config.cache_clear()
+        config = load_facet_config()
+        keys = config["exhibitors"].get_facet_keys()
+        assert "what_they_sell" in keys
+        assert len(keys) == 6
+
+    def test_count_non_empty_facets(self):
+        """Adaptive breadth: only count facets with values >= 10 chars."""
+        load_facet_config.cache_clear()
+        config = load_facet_config()
+        attendees = config["attendees"]
+        profile = {
+            "products_i_want_to_sell": "Enterprise SaaS solutions for data analytics",
+            "who_i_am": "CTO at a startup",
+            "my_expertise": "short",  # < 10 chars, should be skipped
+            "industries_i_work_in": "",  # empty, should be skipped
+        }
+        count = attendees.count_non_empty_facets(profile)
+        assert count == 2  # Only sell and who_i_am qualify
 
 
 class TestWeightedScoring:

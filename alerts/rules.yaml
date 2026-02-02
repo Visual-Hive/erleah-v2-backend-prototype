@@ -1,0 +1,68 @@
+groups:
+- name: assistant_alerts
+  rules:
+
+  # High error rate
+  - alert: HighErrorRate
+    expr: rate(assistant_errors_total[5m]) > 0.05
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Error rate above 5%"
+
+  # Critical error rate
+  - alert: CriticalErrorRate
+    expr: rate(assistant_errors_total[5m]) > 0.1
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Error rate above 10%"
+
+  # Queue nearly full
+  - alert: QueueNearlyFull
+    expr: assistant_queue_utilization > 0.8
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Queue utilization above 80%"
+
+  # Queue full
+  - alert: QueueFull
+    expr: assistant_queue_utilization >= 0.95
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Queue nearly full, rejecting requests"
+
+  # Slow responses
+  - alert: SlowResponses
+    expr: histogram_quantile(0.95, rate(assistant_request_duration_seconds_bucket[5m])) > 15
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "p95 latency above 15 seconds"
+
+  # Low cache hit rate
+  - alert: LowCacheHitRate
+    expr: |
+      rate(assistant_cache_hits_total{cache_type="prompt"}[15m]) /
+      (rate(assistant_cache_hits_total{cache_type="prompt"}[15m]) + rate(assistant_cache_misses_total{cache_type="prompt"}[15m])) < 0.6
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Prompt cache hit rate below 60%"
+
+  # High memory usage
+  - alert: HighMemoryUsage
+    expr: assistant_memory_bytes / 1024 / 1024 / 1024 > 3
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Memory usage above 3GB"

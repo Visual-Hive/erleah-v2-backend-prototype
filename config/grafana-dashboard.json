@@ -1,0 +1,237 @@
+{
+  "dashboard": {
+    "title": "Erleah Backend",
+    "uid": "erleah-backend",
+    "timezone": "browser",
+    "refresh": "10s",
+    "panels": [
+      {
+        "title": "Request Rate",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(erleah_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}} {{status}}"
+          }
+        ]
+      },
+      {
+        "title": "Request Duration (p95)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(erleah_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 {{endpoint}}"
+          }
+        ]
+      },
+      {
+        "title": "Active Requests & Workers",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "erleah_active_requests",
+            "legendFormat": "Active Requests"
+          },
+          {
+            "expr": "erleah_active_workers",
+            "legendFormat": "Active Workers"
+          },
+          {
+            "expr": "erleah_queue_size",
+            "legendFormat": "Queue Size"
+          }
+        ]
+      },
+      {
+        "title": "Queue Utilization",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "erleah_queue_utilization",
+            "legendFormat": "Utilization"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 0.6, "color": "yellow"},
+                {"value": 0.8, "color": "orange"},
+                {"value": 0.95, "color": "red"}
+              ]
+            },
+            "max": 1,
+            "unit": "percentunit"
+          }
+        }
+      },
+      {
+        "title": "Cache Hit Rate",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(erleah_cache_hits_total[5m]) / (rate(erleah_cache_hits_total[5m]) + rate(erleah_cache_misses_total[5m]))",
+            "legendFormat": "Hit Rate ({{layer}})"
+          }
+        ]
+      },
+      {
+        "title": "Cache Operation Duration",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(erleah_cache_operation_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 {{operation}}"
+          }
+        ]
+      },
+      {
+        "title": "LLM Token Usage (per hour)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "rate(erleah_llm_tokens_total[1h]) * 3600",
+            "legendFormat": "{{model}} - {{token_type}}"
+          }
+        ]
+      },
+      {
+        "title": "LLM Cost (per hour, USD)",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "targets": [
+          {
+            "expr": "(rate(erleah_llm_tokens_total{token_type='input'}[1h]) * 0.000003 + rate(erleah_llm_tokens_total{token_type='output'}[1h]) * 0.000015 + rate(erleah_llm_tokens_total{token_type='cached'}[1h]) * 0.0000003) * 3600",
+            "legendFormat": "Est. Cost/hr"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "currencyUSD"}
+        }
+      },
+      {
+        "title": "LLM Duration (p95)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(erleah_llm_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 {{model}}"
+          }
+        ]
+      },
+      {
+        "title": "Search Results Distribution",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.5, rate(erleah_search_results_bucket[5m]))",
+            "legendFormat": "median {{table}} ({{mode}})"
+          }
+        ]
+      },
+      {
+        "title": "Faceted Search Score Distribution",
+        "type": "histogram",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+        "targets": [
+          {
+            "expr": "rate(erleah_faceted_search_score_bucket[5m])",
+            "legendFormat": "{{le}}"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+        "targets": [
+          {
+            "expr": "rate(erleah_errors_total[5m])",
+            "legendFormat": "{{error_type}} ({{node}})"
+          }
+        ]
+      },
+      {
+        "title": "UX: Time to First Feedback (p95)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 48},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(erleah_time_to_first_feedback_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 3, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "UX: Time to First Chunk (p95)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 48},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(erleah_time_to_first_chunk_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "System: Memory Usage",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 48},
+        "targets": [
+          {
+            "expr": "erleah_memory_bytes",
+            "legendFormat": "RSS"
+          }
+        ],
+        "fieldConfig": {"defaults": {"unit": "bytes"}}
+      },
+      {
+        "title": "System: CPU Usage",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 48},
+        "targets": [
+          {
+            "expr": "erleah_cpu_percent",
+            "legendFormat": "CPU %"
+          }
+        ],
+        "fieldConfig": {"defaults": {"unit": "percent"}}
+      }
+    ]
+  }
+}

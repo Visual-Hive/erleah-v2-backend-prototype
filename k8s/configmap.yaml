@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: assistant-config
+data:
+  qdrant-url: "http://qdrant-service:6333"
+  log-level: "INFO"

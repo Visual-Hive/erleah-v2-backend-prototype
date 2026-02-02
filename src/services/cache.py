@@ -1,13 +1,15 @@
-"""Redis caching service with graceful degradation."""
+"""Redis caching service with graceful degradation and metrics."""
 
 import hashlib
 import json
+import time
 from typing import Any
 
 import structlog
 from redis.asyncio import Redis
 
 from src.config import settings
+from src.monitoring.metrics import CACHE_HIT, CACHE_MISS, CACHE_OPERATION_DURATION
 
 logger = structlog.get_logger()
 
@@ -31,6 +33,9 @@ class CacheService:
                 settings.redis_url,
                 decode_responses=True,
                 socket_connect_timeout=5,
+                socket_keepalive=True,
+                max_connections=50,
+                retry_on_timeout=True,
             )
             await self._redis.ping()
             logger.info("cache.connected", url=settings.redis_url)
@@ -43,14 +48,19 @@ class CacheService:
             await self._redis.close()
             logger.info("cache.closed")
 
-    async def get(self, key: str) -> Any | None:
+    async def get(self, key: str, cache_type: str = "general") -> Any | None:
         """Get a value from cache. Returns None on miss or Redis failure."""
         if not self._redis:
             return None
+        start = time.perf_counter()
         try:
             raw = await self._redis.get(key)
+            duration = time.perf_counter() - start
+            CACHE_OPERATION_DURATION.labels(operation="get").observe(duration)
             if raw is None:
+                CACHE_MISS.labels(cache_type=cache_type).inc()
                 return None
+            CACHE_HIT.labels(cache_type=cache_type).inc()
             return json.loads(raw)
         except Exception as e:
             logger.warning("cache.get_failed", key=key, error=str(e))
@@ -63,9 +73,12 @@ class CacheService:
         # Don't cache empty results
         if value is None or value == [] or value == {}:
             return False
+        start = time.perf_counter()
         try:
             raw = json.dumps(value, default=str)
             await self._redis.set(key, raw, ex=ttl)
+            duration = time.perf_counter() - start
+            CACHE_OPERATION_DURATION.labels(operation="set").observe(duration)
             return True
         except Exception as e:
             logger.warning("cache.set_failed", key=key, error=str(e))
@@ -82,6 +95,20 @@ class CacheService:
             logger.warning("cache.delete_failed", key=key, error=str(e))
             return False
 
+    async def delete_pattern(self, pattern: str) -> int:
+        """Delete all keys matching a pattern (e.g. 'profile:*'). Returns count deleted."""
+        if not self._redis:
+            return 0
+        try:
+            deleted = 0
+            async for key in self._redis.scan_iter(match=pattern, count=100):
+                await self._redis.delete(key)
+                deleted += 1
+            return deleted
+        except Exception as e:
+            logger.warning("cache.delete_pattern_failed", pattern=pattern, error=str(e))
+            return 0
+
     @property
     def is_connected(self) -> bool:
         return self._redis is not None
@@ -94,6 +121,17 @@ class CacheService:
             await self._redis.ping()
             return True
         except Exception:
+            return False
+
+    async def publish(self, channel: str, message: str) -> bool:
+        """Publish a message to a Redis pub/sub channel."""
+        if not self._redis:
+            return False
+        try:
+            await self._redis.publish(channel, message)
+            return True
+        except Exception as e:
+            logger.warning("cache.publish_failed", channel=channel, error=str(e))
             return False
 
 

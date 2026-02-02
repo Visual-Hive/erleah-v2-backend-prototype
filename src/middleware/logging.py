@@ -1,5 +1,6 @@
 """Structlog configuration and trace ID middleware."""
 
+import logging
 import uuid
 from contextvars import ContextVar
 
@@ -8,11 +9,24 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from src.config import settings
+
 trace_id_var: ContextVar[str] = ContextVar("trace_id", default="")
+
+# Map string log levels to stdlib numeric levels
+_LOG_LEVEL_MAP = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
 
 
 def configure_structlog() -> None:
     """Configure structlog with JSON rendering and contextvars."""
+    log_level = _LOG_LEVEL_MAP.get(settings.log_level.upper(), logging.INFO)
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -22,7 +36,7 @@ def configure_structlog() -> None:
             structlog.processors.format_exc_info,
             structlog.processors.JSONRenderer(),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(0),
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

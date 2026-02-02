@@ -4,10 +4,11 @@ from qdrant_client.http import models
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 
 from src.config import settings
+from src.services.resilience import async_retry, get_circuit_breaker
 
 logger = structlog.get_logger()
 
-# Defined in FACET_DEFINITIONS.md
+# Defined in FACET_DEFINITIONS.md — includes attendees
 COLLECTIONS = {
     "sessions_master": "sessions_master",
     "sessions_facets": "sessions_facets",
@@ -15,6 +16,8 @@ COLLECTIONS = {
     "exhibitors_facets": "exhibitors_facets",
     "speakers_master": "speakers_master",
     "speakers_facets": "speakers_facets",
+    "attendees_master": "attendees_master",
+    "attendees_facets": "attendees_facets",
 }
 
 
@@ -26,6 +29,7 @@ class QdrantService:
             timeout=30,
         )
         self.vector_size = 1536  # OpenAI text-embedding-3-small
+        self._breaker = get_circuit_breaker("qdrant")
 
     async def ensure_collections(self) -> None:
         """Create collections if they don't exist."""
@@ -50,6 +54,7 @@ class QdrantService:
         )
         logger.info(f"Upserted {len(points)} points into {collection_name}")
 
+    @async_retry(max_retries=2, base_delay=0.5, exceptions=(Exception,))
     async def search(
         self,
         collection_name: str,
@@ -59,34 +64,37 @@ class QdrantService:
         score_threshold: float = 0.4,
         filter_conditions: dict | None = None,
     ) -> list[models.ScoredPoint]:
-        """Base search method."""
+        """Base search method with retry and circuit breaker."""
 
-        # Base filter: Must match conference_id
-        must_conditions = [
-            models.FieldCondition(
-                key="conference_id",
-                match=models.MatchValue(value=conference_id),
-            )
-        ]
-
-        # Additional filters (e.g., facet_key)
-        if filter_conditions:
-            for key, value in filter_conditions.items():
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=key,
-                        match=models.MatchValue(value=value),
-                    )
+        async def _do_search():
+            # Base filter: Must match conference_id
+            must_conditions = [
+                models.FieldCondition(
+                    key="conference_id",
+                    match=models.MatchValue(value=conference_id),
                 )
+            ]
 
-        result = await self.client.query_points(
-            collection_name=collection_name,
-            query=query_vector,
-            query_filter=models.Filter(must=must_conditions),
-            limit=limit,
-            score_threshold=score_threshold,
-        )
-        return result.points
+            # Additional filters (e.g., facet_key)
+            if filter_conditions:
+                for key, value in filter_conditions.items():
+                    must_conditions.append(
+                        models.FieldCondition(
+                            key=key,
+                            match=models.MatchValue(value=value),
+                        )
+                    )
+
+            result = await self.client.query_points(
+                collection_name=collection_name,
+                query=query_vector,
+                query_filter=models.Filter(must=must_conditions),
+                limit=limit,
+                score_threshold=score_threshold,
+            )
+            return result.points
+
+        return await self._breaker.call(_do_search)
 
     async def search_faceted(
         self,

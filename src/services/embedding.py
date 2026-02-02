@@ -2,6 +2,7 @@ import structlog
 from openai import AsyncOpenAI
 from src.config import settings
 from src.services.cache import get_cache_service, make_key
+from src.services.resilience import async_retry, get_circuit_breaker
 
 logger = structlog.get_logger()
 
@@ -12,29 +13,37 @@ class EmbeddingService:
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.model = settings.embedding_model
+        self._breaker = get_circuit_breaker("openai_embedding")
 
     async def embed_text(self, text: str) -> list[float]:
         """Generate embedding for a single text. Cached for 1 hour."""
         # Check cache first (1 hour TTL)
         cache = get_cache_service()
         cache_key = make_key("emb", self.model, text)
-        cached = await cache.get(cache_key)
+        cached = await cache.get(cache_key, layer="embedding")
         if cached is not None:
             return cached
 
         try:
-            # Normalize text
-            text = text.replace("\n", " ")
-            response = await self.client.embeddings.create(
-                model=self.model,
-                input=text,
-            )
-            embedding = response.data[0].embedding
+            embedding = await self._embed_with_retry(text)
             await cache.set(cache_key, embedding, ttl=3600)
             return embedding
         except Exception as e:
             logger.error("embedding_failed", error=str(e))
             raise
+
+    @async_retry(max_retries=2, base_delay=1.0, exceptions=(Exception,))
+    async def _embed_with_retry(self, text: str) -> list[float]:
+        """Embed text with retry and circuit breaker."""
+        async def _do_embed():
+            cleaned = text.replace("\n", " ")
+            response = await self.client.embeddings.create(
+                model=self.model,
+                input=cleaned,
+            )
+            return response.data[0].embedding
+
+        return await self._breaker.call(_do_embed)
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts (batch)."""
