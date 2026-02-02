@@ -20,7 +20,7 @@ class EmbeddingService:
         # Check cache first (1 hour TTL)
         cache = get_cache_service()
         cache_key = make_key("emb", self.model, text)
-        cached = await cache.get(cache_key, layer="embedding")
+        cached = await cache.get(cache_key, cache_type="embedding")
         if cached is not None:
             return cached
 

@@ -333,7 +333,8 @@ class TestCheckResults:
 
 class TestRelaxAndRetry:
     @pytest.mark.asyncio
-    async def test_retries_zero_result_tables_with_faceted(self):
+    async def test_first_retry_relaxes_threshold_keeps_faceted(self):
+        """First retry: lower score_threshold, double limit, keep faceted."""
         from src.search.faceted import SearchResult
 
         mock_results = [
@@ -348,7 +349,7 @@ class TestRelaxAndRetry:
             state = _base_state(
                 zero_result_tables=["sessions"],
                 planned_queries=[
-                    {"table": "sessions", "search_mode": "master", "query_text": "coffee", "limit": 5},
+                    {"table": "sessions", "search_mode": "faceted", "query_text": "coffee", "limit": 5},
                 ],
                 query_results={"sessions": [], "exhibitors": [{"entity_id": "e1"}]},
                 retry_count=0,
@@ -359,13 +360,18 @@ class TestRelaxAndRetry:
             assert result["retry_count"] == 1
             # Existing exhibitor results preserved
             assert result["query_results"]["exhibitors"] == [{"entity_id": "e1"}]
-            # First retry uses faceted with doubled limit
+            # First retry: faceted with lowered threshold and doubled limit
             mock_search.assert_called_once()
             call_kwargs = mock_search.call_args
-            assert call_kwargs.kwargs.get("use_faceted") is True or call_kwargs[1].get("use_faceted") is True
+            assert call_kwargs.kwargs.get("use_faceted") is True
+            assert call_kwargs.kwargs.get("score_threshold") == 0.15
+            assert call_kwargs.kwargs.get("limit") == 10  # 5 * 2
+            # Retry metadata stored
+            assert result["retry_metadata"]["relaxation"] == "lowered_threshold"
 
     @pytest.mark.asyncio
-    async def test_second_retry_uses_master_search(self):
+    async def test_second_retry_falls_back_to_master(self):
+        """Second retry: switch to master search (remove facet structure)."""
         from src.search.faceted import SearchResult
 
         mock_results = [
@@ -388,9 +394,12 @@ class TestRelaxAndRetry:
             result = await relax_and_retry(state)
 
             assert result["retry_count"] == 2
-            # Second retry uses master search
+            # Second retry: master search with score_threshold=0.2
             call_kwargs = mock_search.call_args
-            assert call_kwargs.kwargs.get("use_faceted") is False or call_kwargs[1].get("use_faceted") is False
+            assert call_kwargs.kwargs.get("use_faceted") is False
+            assert call_kwargs.kwargs.get("score_threshold") == 0.2
+            assert call_kwargs.kwargs.get("limit") == 20
+            assert result["retry_metadata"]["relaxation"] == "master_fallback"
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,181 @@
+{
+  "dashboard": {
+    "title": "Assistant - System Health",
+    "uid": "assistant-system-health",
+    "tags": ["assistant", "system"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": { "from": "now-1h", "to": "now" },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Requests/min",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(assistant_requests_total[5m])) * 60",
+            "legendFormat": "req/min"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "reqps" }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Error Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(rate(assistant_errors_total[5m])) / sum(rate(assistant_requests_total[5m])) * 100",
+            "legendFormat": "error %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percent", "thresholds": { "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 5 }
+          ]}}
+        }
+      },
+      {
+        "id": 3,
+        "title": "Queue Size",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "assistant_queue_size",
+            "legendFormat": "queue"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Avg Latency (p95)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(assistant_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Request Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(assistant_requests_total[5m])) by (status)",
+            "legendFormat": "{{status}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "reqps" }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Error Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(assistant_errors_total[5m])) by (error_type)",
+            "legendFormat": "{{error_type}}"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Queue Utilization",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "assistant_queue_utilization",
+            "legendFormat": "utilization"
+          },
+          {
+            "expr": "assistant_queue_size",
+            "legendFormat": "queue_size"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": { "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.6 },
+              { "color": "orange", "value": 0.8 },
+              { "color": "red", "value": 0.95 }
+            ]}
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Worker Status",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "assistant_active_workers",
+            "legendFormat": "active_workers"
+          },
+          {
+            "expr": "assistant_active_requests",
+            "legendFormat": "active_requests"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Request Duration Distribution",
+        "type": "histogram",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.5, rate(assistant_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(assistant_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(assistant_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Memory & CPU",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+        "targets": [
+          {
+            "expr": "assistant_memory_bytes / 1024 / 1024",
+            "legendFormat": "memory_mb"
+          },
+          {
+            "expr": "assistant_cpu_percent",
+            "legendFormat": "cpu_%"
+          }
+        ]
+      }
+    ]
+  }
+}

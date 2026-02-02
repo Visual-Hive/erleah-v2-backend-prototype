@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     # Anthropic (Haiku for evaluation)
-    anthropic_haiku_model: str = "claude-haiku-4-20250414"
+    anthropic_haiku_model: str = "claude-haiku-4-5-20251001"
 
     # xAI / Grok (acknowledgments)
     xai_api_key: str = ""

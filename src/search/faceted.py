@@ -38,6 +38,7 @@ async def faceted_search(
     limit: int = 10,
     user_profile_facets: dict[str, str] | None = None,
     filters: dict[str, Any] | None = None,
+    score_threshold: float | None = None,
 ) -> List[SearchResult]:
     """
     Search using the multi-faceted strategy with weighted scoring.
@@ -68,13 +69,16 @@ async def faceted_search(
         # Standard faceted search (exhibitors, sessions, speakers)
         query_vector = await embedding_service.embed_text(query)
 
-        raw_results = await qdrant.search_faceted(
+        search_kwargs = dict(
             entity_type=entity_type,
             query_vector=query_vector,
             conference_id=conference_id,
             facet_key=None,  # Search all facets
             limit=limit * 5,
         )
+        if score_threshold is not None:
+            search_kwargs["score_threshold"] = score_threshold
+        raw_results = await qdrant.search_faceted(**search_kwargs)
 
         result = _aggregate_and_score(raw_results, entity_config, entity_type, limit)
 
@@ -255,12 +259,14 @@ async def hybrid_search(
     limit: int = 10,
     user_profile_facets: dict[str, str] | None = None,
     filters: dict[str, Any] | None = None,
+    score_threshold: float | None = None,
 ) -> List[SearchResult]:
     """Router for choosing between Master Search (Specific) vs Faceted Search (Vague)."""
 
     if use_faceted:
         return await faceted_search(
-            entity_type, query, conference_id, limit, user_profile_facets, filters
+            entity_type, query, conference_id, limit, user_profile_facets, filters,
+            score_threshold=score_threshold,
         )
 
     # Fallback to Master collection (Simple vector search)
@@ -268,12 +274,15 @@ async def hybrid_search(
     embedding = get_embedding_service()
     query_vector = await embedding.embed_text(query)
 
-    raw = await qdrant.search(
+    search_kwargs = dict(
         collection_name=f"{entity_type}_master",
         query_vector=query_vector,
         conference_id=conference_id,
         limit=limit,
     )
+    if score_threshold is not None:
+        search_kwargs["score_threshold"] = score_threshold
+    raw = await qdrant.search(**search_kwargs)
 
     result = [
         SearchResult(

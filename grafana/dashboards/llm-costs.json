@@ -1,0 +1,150 @@
+{
+  "dashboard": {
+    "title": "Assistant - LLM & Costs",
+    "uid": "assistant-llm-costs",
+    "tags": ["assistant", "llm", "costs"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": { "from": "now-24h", "to": "now" },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Tokens Today (Input)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(increase(assistant_llm_tokens_total{token_type=\"input\"}[24h]))",
+            "legendFormat": "input tokens"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Tokens Today (Output)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          {
+            "expr": "sum(increase(assistant_llm_tokens_total{token_type=\"output\"}[24h]))",
+            "legendFormat": "output tokens"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Cache Hit Rate (Prompt)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "rate(assistant_cache_hits_total{cache_type=\"prompt\"}[5m]) / (rate(assistant_cache_hits_total{cache_type=\"prompt\"}[5m]) + rate(assistant_cache_misses_total{cache_type=\"prompt\"}[5m])) * 100",
+            "legendFormat": "hit rate %"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percent", "thresholds": { "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 60 },
+            { "color": "green", "value": 80 }
+          ]}}
+        }
+      },
+      {
+        "id": 4,
+        "title": "Estimated Cost (24h)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          {
+            "expr": "(sum(increase(assistant_llm_tokens_total{token_type=\"input\"}[24h])) * 0.000003) + (sum(increase(assistant_llm_tokens_total{token_type=\"output\"}[24h])) * 0.000015) + (sum(increase(assistant_llm_tokens_total{token_type=\"cached\"}[24h])) * 0.0000003)",
+            "legendFormat": "cost"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "currencyUSD" }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Token Usage by Model",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(assistant_llm_tokens_total[5m])) by (model, token_type)",
+            "legendFormat": "{{model}} - {{token_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "short" }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Cache Hit Rate Over Time",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "rate(assistant_cache_hits_total[5m]) / (rate(assistant_cache_hits_total[5m]) + rate(assistant_cache_misses_total[5m]))",
+            "legendFormat": "{{cache_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percentunit" }
+        }
+      },
+      {
+        "id": 7,
+        "title": "LLM Call Duration by Model",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(assistant_llm_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.5, rate(assistant_llm_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "id": 8,
+        "title": "LLM Calls by Node",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+        "targets": [
+          {
+            "expr": "sum(rate(assistant_llm_calls_total[5m])) by (node)",
+            "legendFormat": "{{node}}"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Cost Savings from Caching",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+        "targets": [
+          {
+            "expr": "sum(rate(assistant_llm_tokens_total{token_type=\"cached\"}[1h])) * (0.000003 - 0.0000003) * 3600",
+            "legendFormat": "hourly savings ($)"
+          },
+          {
+            "expr": "(sum(rate(assistant_llm_tokens_total{token_type=\"input\"}[1h])) * 0.000003 + sum(rate(assistant_llm_tokens_total{token_type=\"output\"}[1h])) * 0.000015) * 3600",
+            "legendFormat": "hourly cost ($)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "currencyUSD" }
+        }
+      }
+    ]
+  }
+}

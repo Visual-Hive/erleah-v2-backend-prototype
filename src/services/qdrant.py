@@ -103,6 +103,7 @@ class QdrantService:
         conference_id: str,
         facet_key: str | None = None,  # If None, search ALL facets
         limit: int = 20,
+        score_threshold: float = 0.3,
     ) -> list[models.ScoredPoint]:
         """Wrapper for searching facet collections."""
         collection = f"{entity_type}_facets"
@@ -113,7 +114,7 @@ class QdrantService:
             query_vector=query_vector,
             conference_id=conference_id,
             limit=limit,
-            score_threshold=0.3,  # Facets might have lower individual scores
+            score_threshold=score_threshold,
             filter_conditions=filters,
         )
 
