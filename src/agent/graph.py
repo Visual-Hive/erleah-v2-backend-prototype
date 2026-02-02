@@ -1,162 +1,182 @@
-# src/agent/graph.py
+"""
+8-node LangGraph pipeline for the Erleah conference assistant.
+
+Flow:
+  START → fetch_data_parallel
+    → [conditional: profile_needs_update?] → update_profile (or skip)
+    → plan_queries
+    → execute_queries
+    → check_results
+    → [conditional: needs_retry?] → relax_and_retry → check_results (loop)
+    → generate_response (streaming tokens forwarded via SSE)
+    → evaluate (non-blocking, runs after 'done' is sent)
+    → END
+"""
 
 from typing import AsyncGenerator
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+import structlog
+from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
-from langgraph.prebuilt import ToolNode
 
-from src.agent.state import AgentState
-from src.config import settings
+from src.agent.nodes.check_results import check_results
+from src.agent.nodes.evaluate import evaluate
+from src.agent.nodes.execute_queries import execute_queries
+from src.agent.nodes.fetch_data import fetch_data_parallel
+from src.agent.nodes.generate_response import generate_response
+from src.agent.nodes.plan_queries import plan_queries
+from src.agent.nodes.relax_and_retry import relax_and_retry
+from src.agent.nodes.update_profile import update_profile
+from src.agent.state import AssistantState
 
-# Import Tools
-from src.tools.exhibitor_search import ExhibitorSearchTool
-from src.tools.session_search import SessionSearchTool
-
-# Initialize Claude
-llm = ChatAnthropic(
-    model=settings.anthropic_model,
-    api_key=settings.anthropic_api_key,
-    temperature=0,
-)
-
-# Register Tools
-TOOLS = [
-    ExhibitorSearchTool(),
-    SessionSearchTool(),
-]
-
-llm_with_tools = llm.bind_tools(TOOLS)
-
-SYSTEM_PROMPT = """You are Erleah, an AI conference assistant. You help attendees find sessions, exhibitors, speakers, and navigate the conference. Use the available search tools to find relevant information before answering. Be concise and helpful."""
+logger = structlog.get_logger()
 
 
-async def call_agent(state: AgentState) -> dict:
-    """Node: Call the LLM with tools bound."""
-    messages = state["messages"]
-    iteration = state.get("iteration", 0)
-    user_context = state.get("user_context", {})
+# --- Conditional edges ---
 
-    # Build system prompt with user context
-    system_content = SYSTEM_PROMPT
-    if user_context:
-        system_content += f"\n\nUser context: {user_context}"
-        if "conference_id" in user_context:
-            system_content += f"\nAlways use conference_id=\"{user_context['conference_id']}\" when calling search tools."
-
-    # Prepend system message if not present
-    if not messages or not isinstance(messages[0], SystemMessage):
-        messages = [SystemMessage(content=system_content)] + messages
-
-    response = await llm_with_tools.ainvoke(messages)
-
-    return {
-        "messages": [response],
-        "iteration": iteration + 1,
-    }
+def should_update_profile(state: AssistantState) -> str:
+    """Route to update_profile if the message contains profile info."""
+    if state.get("profile_needs_update", False):
+        return "update_profile"
+    return "plan_queries"
 
 
-async def execute_tools(state: AgentState) -> dict:
-    """Node: Execute tools."""
-    messages = state["messages"]
-    last_message = messages[-1]
-
-    tool_node = ToolNode(TOOLS)
-    result = await tool_node.ainvoke({"messages": [last_message]})
-
-    tool_messages = result["messages"]
-
-    return {
-        "messages": tool_messages,
-    }
+def should_retry(state: AssistantState) -> str:
+    """Route to relax_and_retry if there are zero-result tables and retries left."""
+    if state.get("needs_retry", False):
+        return "relax_and_retry"
+    return "generate_response"
 
 
-def should_continue(state: AgentState) -> str:
-    """Edge: Decide whether to call tools or finish."""
-    messages = state["messages"]
-    last_message = messages[-1]
-    iteration = state.get("iteration", 0)
+# --- Build the graph ---
 
-    # Safety: stop after max iterations
-    if iteration >= settings.max_iterations:
-        return "end"
+graph_builder = StateGraph(AssistantState)
 
-    # If the LLM made tool calls, execute them
-    if isinstance(last_message, AIMessage) and last_message.tool_calls:
-        return "tools"
+# Add nodes
+graph_builder.add_node("fetch_data", fetch_data_parallel)
+graph_builder.add_node("update_profile", update_profile)
+graph_builder.add_node("plan_queries", plan_queries)
+graph_builder.add_node("execute_queries", execute_queries)
+graph_builder.add_node("check_results", check_results)
+graph_builder.add_node("relax_and_retry", relax_and_retry)
+graph_builder.add_node("generate_response", generate_response)
+graph_builder.add_node("evaluate", evaluate)
 
-    return "end"
+# Wire edges
+graph_builder.set_entry_point("fetch_data")
 
-
-# Build the graph
-graph_builder = StateGraph(AgentState)
-graph_builder.add_node("agent", call_agent)
-graph_builder.add_node("tools", execute_tools)
-
-graph_builder.set_entry_point("agent")
+# fetch_data → conditional → update_profile OR plan_queries
 graph_builder.add_conditional_edges(
-    "agent",
-    should_continue,
-    {"tools": "tools", "end": END},
+    "fetch_data",
+    should_update_profile,
+    {"update_profile": "update_profile", "plan_queries": "plan_queries"},
 )
-graph_builder.add_edge("tools", "agent")
 
+# update_profile → plan_queries
+graph_builder.add_edge("update_profile", "plan_queries")
+
+# plan_queries → execute_queries
+graph_builder.add_edge("plan_queries", "execute_queries")
+
+# execute_queries → check_results
+graph_builder.add_edge("execute_queries", "check_results")
+
+# check_results → conditional → relax_and_retry OR generate_response
+graph_builder.add_conditional_edges(
+    "check_results",
+    should_retry,
+    {"relax_and_retry": "relax_and_retry", "generate_response": "generate_response"},
+)
+
+# relax_and_retry → check_results (loop back)
+graph_builder.add_edge("relax_and_retry", "check_results")
+
+# generate_response → evaluate
+graph_builder.add_edge("generate_response", "evaluate")
+
+# evaluate → END
+graph_builder.add_edge("evaluate", END)
+
+# Compile
 graph = graph_builder.compile()
 
 
 async def stream_agent_response(
     message: str, user_context: dict
 ) -> AsyncGenerator[dict, None]:
-    """Stream agent responses as events for SSE."""
-    initial_state = {
+    """Stream agent responses as SSE events.
+
+    Event types:
+    - acknowledgment: sent immediately
+    - progress: sent when each node starts (node name)
+    - chunk: streamed response tokens (only from generate_response node)
+    - done: sent after generate_response completes (before evaluate finishes)
+    - error: sent on failures
+    """
+    initial_state: AssistantState = {
         "messages": [HumanMessage(content=message)],
         "user_context": user_context,
-        "plan": [],
-        "tool_results": {},
-        "needs_more_info": False,
-        "iteration": 0,
+        "user_profile": {},
+        "conversation_history": [],
+        "profile_needs_update": False,
+        "profile_updates": None,
+        "intent": "",
+        "query_mode": None,
+        "planned_queries": [],
+        "query_results": {},
+        "zero_result_tables": [],
+        "retry_count": 0,
+        "needs_retry": False,
+        "response_text": "",
+        "referenced_ids": [],
+        "quality_score": None,
+        "confidence_score": None,
+        "error": None,
+        "current_node": "",
     }
+
+    # Send acknowledgment immediately
+    yield {"event": "acknowledgment", "data": {"status": "processing"}}
+
+    seen_nodes: set[str] = set()
+    done_sent = False
 
     async for event in graph.astream_events(initial_state, version="v2"):
         kind = event["event"]
+        metadata = event.get("metadata", {})
+        langgraph_node = metadata.get("langgraph_node", "")
 
-        if kind == "on_chat_model_stream":
+        # Send progress events when a new node starts
+        if langgraph_node and langgraph_node not in seen_nodes:
+            seen_nodes.add(langgraph_node)
+            yield {
+                "event": "progress",
+                "data": {"node": langgraph_node},
+            }
+
+        # Stream tokens only from generate_response node
+        if kind == "on_chat_model_stream" and langgraph_node == "generate_response":
             chunk = event["data"].get("chunk")
             if chunk and chunk.content:
                 content = chunk.content
-                # Anthropic streams content as a list of blocks or a string
                 if isinstance(content, list):
                     for block in content:
                         if isinstance(block, dict) and block.get("type") == "text":
                             text = block.get("text", "")
                             if text:
-                                yield {
-                                    "event": "message",
-                                    "data": {"token": text},
-                                }
+                                yield {"event": "chunk", "data": {"token": text}}
                 elif isinstance(content, str):
-                    yield {
-                        "event": "message",
-                        "data": {"token": content},
-                    }
+                    yield {"event": "chunk", "data": {"token": content}}
 
-        elif kind == "on_tool_start":
-            yield {
-                "event": "tool_execution",
-                "data": {
-                    "tool": event.get("name", ""),
-                    "status": "started",
-                },
-            }
+        # Detect when generate_response finishes → send done before evaluate
+        if (
+            kind == "on_chain_end"
+            and langgraph_node == "generate_response"
+            and not done_sent
+        ):
+            done_sent = True
+            yield {"event": "done", "data": {}}
 
-        elif kind == "on_tool_end":
-            yield {
-                "event": "tool_execution",
-                "data": {
-                    "tool": event.get("name", ""),
-                    "status": "completed",
-                },
-            }
-
-    yield {"event": "done", "data": {}}
+    # Fallback: if done was never sent (e.g. error path), send it now
+    if not done_sent:
+        yield {"event": "done", "data": {}}

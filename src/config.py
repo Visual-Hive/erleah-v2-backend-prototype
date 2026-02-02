@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     qdrant_api_key: str | None = None
     redis_url: str = "redis://localhost:6379"
 
+    # Anthropic (Haiku for evaluation)
+    anthropic_haiku_model: str = "claude-haiku-4-20250414"
+
     # App Config
     environment: str = "development"
     api_host: str = "0.0.0.0"
@@ -25,6 +28,13 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
     log_level: str = "INFO"
     max_iterations: int = 10
+
+    # Retry settings
+    max_retry_count: int = 1
+    relaxed_score_threshold: float = 0.25
+
+    # Evaluation
+    evaluation_enabled: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

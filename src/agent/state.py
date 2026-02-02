@@ -1,35 +1,53 @@
 """
 Agent state definition for LangGraph.
 
-The state holds all information the agent needs during a conversation turn.
+AssistantState holds all information flowing through the 8-node pipeline.
 """
 
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
-class AgentState(TypedDict):
-    """State schema for the conference assistant agent.
-    
-    This defines what information flows through the agent graph.
-    """
-    
-    # Conversation history (automatically appended to)
+class AssistantState(TypedDict):
+    """State schema for the 8-node conference assistant pipeline."""
+
+    # Conversation history (automatically appended via reducer)
     messages: Annotated[list[BaseMessage], add_messages]
-    
-    # User context (preferences, location, etc.)
-    user_context: dict[str, any]
-    
-    # Agent's current plan (list of actions to take)
-    plan: list[str]
-    
-    # Results from tool executions
-    tool_results: dict[str, any]
-    
-    # Agent's reflection on whether it needs more info
-    needs_more_info: bool
-    
-    # Iteration counter (to prevent infinite loops)
-    iteration: int
+
+    # User context passed from the request
+    user_context: dict[str, Any]  # user_id, conference_id, etc.
+
+    # --- fetch_data ---
+    user_profile: dict[str, Any]
+    conversation_history: list[dict]
+    profile_needs_update: bool
+
+    # --- update_profile ---
+    profile_updates: dict[str, Any] | None
+
+    # --- plan_queries ---
+    intent: str
+    query_mode: Literal["specific", "profile", "hybrid"] | None
+    planned_queries: list[dict]  # [{table, search_mode, query_text, filters, limit}]
+
+    # --- execute_queries ---
+    query_results: dict[str, list]  # {table_name: [SearchResult, ...]}
+
+    # --- check_results ---
+    zero_result_tables: list[str]
+    retry_count: int
+    needs_retry: bool
+
+    # --- generate_response ---
+    response_text: str
+    referenced_ids: list[str]
+
+    # --- evaluate ---
+    quality_score: float | None
+    confidence_score: float | None
+
+    # --- control ---
+    error: str | None
+    current_node: str

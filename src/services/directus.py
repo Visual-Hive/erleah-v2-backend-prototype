@@ -66,6 +66,53 @@ class DirectusClient:
             payload["metadata"] = metadata
         await self._client.patch(f"/items/messages/{message_id}", json=payload)
 
+    # --- User Profile ---
+
+    async def get_user_profile(self, user_id: str) -> dict[str, Any]:
+        """Fetch user profile by ID."""
+        try:
+            response = await self._client.get(
+                f"/items/user_profiles/{user_id}",
+            )
+            response.raise_for_status()
+            return response.json().get("data", {})
+        except Exception as e:
+            logger.warning("Failed to fetch user profile", user_id=user_id, error=str(e))
+            return {}
+
+    async def update_user_profile(self, user_id: str, updates: dict[str, Any]) -> bool:
+        """Update user profile fields."""
+        try:
+            response = await self._client.patch(
+                f"/items/user_profiles/{user_id}",
+                json=updates,
+            )
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.warning("Failed to update user profile", user_id=user_id, error=str(e))
+            return False
+
+    async def store_evaluation(
+        self, conversation_id: str, message_id: str, quality_score: float, confidence_score: float
+    ) -> bool:
+        """Store evaluation results for a response."""
+        try:
+            response = await self._client.post(
+                "/items/evaluations",
+                json={
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "quality_score": quality_score,
+                    "confidence_score": confidence_score,
+                },
+            )
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.warning("Failed to store evaluation", error=str(e))
+            return False
+
     # --- Data Fetching (For Ingestion or RAG) ---
 
     async def get_exhibitors(self, conference_id: str):

@@ -101,10 +101,11 @@ async def chat_stream(request: dict):
         }
     
     Response: Server-Sent Events stream with:
-        - event: thinking (agent planning)
-        - event: tool_execution (tool usage)
-        - event: message (response tokens)
+        - event: acknowledgment (request received)
+        - event: progress (node started)
+        - event: chunk (response tokens)
         - event: done (completion)
+        - event: error (on failure)
     """
     message = request.get("message", "")
     user_context = request.get("user_context", {})
@@ -166,13 +167,13 @@ async def chat_non_streaming(request: dict):
     # Collect all events
     events = []
     response_text = ""
-    
+
     async for event in stream_agent_response(message, user_context):
         events.append(event)
-        
-        if event["event"] == "message":
+
+        if event["event"] == "chunk":
             response_text += event["data"].get("token", "")
-    
+
     return {
         "response": response_text.strip(),
         "events": events,
