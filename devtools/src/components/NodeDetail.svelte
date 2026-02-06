@@ -51,6 +51,14 @@
       <div class="text-sm font-mono text-yellow-400">{formatDuration(node.duration_ms)}</div>
     </div>
 
+    <!-- Prompt Version -->
+    {#if node.prompt_version != null}
+      <div class="mb-4">
+        <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Prompt Version</div>
+        <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-gray-800 text-gray-300">v{node.prompt_version}</span>
+      </div>
+    {/if}
+
     <!-- LLM Info -->
     {#if node.llm}
       <div class="mb-4 p-3 rounded bg-purple-950/20 border border-purple-900/30">

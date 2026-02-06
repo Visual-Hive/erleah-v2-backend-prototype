@@ -6,7 +6,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import haiku
-from src.agent.prompts import EVALUATE_SYSTEM
+from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.config import settings
 from src.services.directus import get_directus_client
@@ -48,10 +48,11 @@ async def evaluate(state: AssistantState) -> dict:
 
     try:
         logger.info("  [evaluate] Calling Haiku to score response quality...")
+        registry = get_prompt_registry()
         result = await haiku.ainvoke(
             [
                 SystemMessage(
-                    content=EVALUATE_SYSTEM,
+                    content=registry.get("evaluate"),
                     additional_kwargs={"cache_control": {"type": "ephemeral"}},
                 ),
                 HumanMessage(content=eval_prompt),

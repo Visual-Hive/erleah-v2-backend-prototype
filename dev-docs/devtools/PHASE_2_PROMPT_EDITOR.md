@@ -1,10 +1,13 @@
-# Phase 2: Prompt Editor
+# Phase 2: Prompt Editor ✅ COMPLETE
+
+## Status
+**Implemented:** 2026-02-06 | **Version:** v0.2.0
 
 ## Goal
 View, edit, and hot-reload system prompts for each LLM node. Compare prompt performance across runs.
 
 ## Depends On
-Phase 1 (pipeline visibility + Svelte app scaffold)
+Phase 1 (pipeline visibility + Svelte app scaffold) ✅
 
 ## Backend Changes
 
@@ -143,8 +146,8 @@ Layout: Lives in the right panel of the DevTools UI, toggled via a tab.
 - `devtools/src/lib/stores/config.js` — **NEW**
 
 ## Acceptance Criteria
-- [ ] View all system prompts in the DevTools UI
-- [ ] Edit a prompt and save → next pipeline run uses updated prompt
-- [ ] Reset a prompt to its default
-- [ ] See prompt version number in node detail panel
-- [ ] Modified prompts show "Modified" indicator
+- [x] View all system prompts in the DevTools UI
+- [x] Edit a prompt and save → next pipeline run uses updated prompt
+- [x] Reset a prompt to its default
+- [x] See prompt version number in node detail panel
+- [x] Modified prompts show "Modified" indicator

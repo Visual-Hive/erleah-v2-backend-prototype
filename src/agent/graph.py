@@ -32,6 +32,7 @@ from src.agent.nodes.generate_response import generate_response
 from src.agent.nodes.plan_queries import plan_queries
 from src.agent.nodes.relax_and_retry import relax_and_retry
 from src.agent.nodes.update_profile import update_profile
+from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.middleware.logging import trace_id_var
 from src.monitoring.metrics import (
@@ -264,6 +265,15 @@ _LLM_NODES = {
     "update_profile", "generate_acknowledgment",
 }
 
+# Mapping from pipeline node → prompt registry key(s)
+_NODE_PROMPT_KEYS: dict[str, str] = {
+    "plan_queries": "plan_queries",
+    "generate_response": "generate_response",
+    "evaluate": "evaluate",
+    "update_profile": "profile_update",
+    "generate_acknowledgment": "acknowledgment",
+}
+
 
 def _sanitize_for_debug(data: dict | None, max_str_len: int = 500) -> dict:
     """Create a JSON-safe, size-limited snapshot of state data for debug events."""
@@ -428,6 +438,14 @@ async def stream_agent_response(
                         "duration_ms": duration_ms,
                         "output": output,
                     }
+                    # Include prompt version for LLM nodes
+                    prompt_key = _NODE_PROMPT_KEYS.get(prev)
+                    if prompt_key:
+                        try:
+                            registry = get_prompt_registry()
+                            node_end_data["prompt_version"] = registry.get_version(prompt_key)
+                        except Exception:
+                            pass
                     if prev in node_llm_usage:
                         llm = node_llm_usage[prev]
                         node_end_data["llm"] = {
@@ -623,6 +641,14 @@ async def stream_agent_response(
             "duration_ms": duration_ms,
             "output": output,
         }
+        # Include prompt version for LLM nodes
+        prompt_key = _NODE_PROMPT_KEYS.get(prev)
+        if prompt_key:
+            try:
+                registry = get_prompt_registry()
+                node_end_data["prompt_version"] = registry.get_version(prompt_key)
+            except Exception:
+                pass
         if prev in node_llm_usage:
             llm = node_llm_usage[prev]
             node_end_data["llm"] = {

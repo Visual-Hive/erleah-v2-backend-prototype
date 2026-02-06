@@ -7,7 +7,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import sonnet
-from src.agent.prompts import GENERATE_RESPONSE_SYSTEM
+from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 
 logger = structlog.get_logger()
@@ -85,10 +85,11 @@ async def generate_response(state: AssistantState) -> dict:
         logger.info(
             "  [generate_response] Calling Sonnet to generate user-facing response..."
         )
+        registry = get_prompt_registry()
         result = await sonnet.ainvoke(
             [
                 SystemMessage(
-                    content=GENERATE_RESPONSE_SYSTEM,
+                    content=registry.get("generate_response"),
                     additional_kwargs={"cache_control": {"type": "ephemeral"}},
                 ),
                 HumanMessage(content=generation_prompt),

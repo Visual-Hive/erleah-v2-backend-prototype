@@ -6,7 +6,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import sonnet
-from src.agent.prompts import PLAN_QUERIES_SYSTEM
+from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 
 logger = structlog.get_logger()
@@ -44,10 +44,11 @@ async def plan_queries(state: AssistantState) -> dict:
 
     try:
         logger.info("  [plan_queries] Calling Sonnet to generate search plan...")
+        registry = get_prompt_registry()
         result = await sonnet.ainvoke(
             [
                 SystemMessage(
-                    content=PLAN_QUERIES_SYSTEM,
+                    content=registry.get("plan_queries"),
                     additional_kwargs={"cache_control": {"type": "ephemeral"}},
                 ),
                 HumanMessage(content=plan_prompt),

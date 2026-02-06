@@ -103,7 +103,7 @@ export function handleNodeStart(data) {
 
 /** Handle node_end event */
 export function handleNodeEnd(data) {
-  const { node, duration_ms, output, llm } = data;
+  const { node, duration_ms, output, llm, prompt_version } = data;
   if (!node) return;
   pipeline.update(state => {
     const nodes = { ...state.nodes };
@@ -114,6 +114,7 @@ export function handleNodeEnd(data) {
         duration_ms: duration_ms || null,
         output: output || null,
         llm: llm || null,
+        prompt_version: prompt_version ?? null,
       };
     }
     return { ...state, nodes, eventsReceived: state.eventsReceived + 1 };

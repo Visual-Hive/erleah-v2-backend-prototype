@@ -35,6 +35,8 @@ class GrokClient:
         """Generate a contextual acknowledgment. Returns fallback on any error."""
         import time as _time
 
+        from src.agent.prompt_registry import get_prompt_registry
+
         start = _time.perf_counter()
 
         logger.info(
@@ -49,10 +51,11 @@ class GrokClient:
             if user_profile and user_profile.get("interests"):
                 user_content += f"\nUser interests: {user_profile['interests']}"
 
+            registry = get_prompt_registry()
             response = await self._client.chat.completions.create(
                 model=self._model,
                 messages=[
-                    {"role": "system", "content": ACKNOWLEDGMENT_SYSTEM},
+                    {"role": "system", "content": registry.get("acknowledgment")},
                     {"role": "user", "content": user_content},
                 ],
                 max_tokens=60,

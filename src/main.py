@@ -43,6 +43,7 @@ from src.services.qdrant import get_qdrant_service
 from src.services.rate_limiter import get_rate_limiter
 from src.monitoring.tracing import setup_tracing, instrument_fastapi
 from src.monitoring.sentry import setup_sentry
+from src.api.debug import router as debug_router
 
 # Configure structlog (replaces logging.basicConfig)
 configure_structlog()
@@ -192,6 +193,9 @@ app.add_middleware(TraceIdMiddleware)
 
 # Instrument with OpenTelemetry (if configured)
 instrument_fastapi(app)
+
+# Mount debug API (DevTools prompt editor, model selector, etc.)
+app.include_router(debug_router, prefix="/api/debug")
 
 
 @app.get("/")

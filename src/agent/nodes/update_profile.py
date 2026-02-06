@@ -6,7 +6,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import sonnet
-from src.agent.prompts import PROFILE_UPDATE_SYSTEM
+from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.services.cache import get_cache_service, make_key
 from src.services.directus import get_directus_client
@@ -38,10 +38,11 @@ async def update_profile(state: AssistantState) -> dict:
             f"User message:\n{user_message}\n\n"
             f"Merge any new profile-relevant information from the message into the profile."
         )
+        registry = get_prompt_registry()
         result = await sonnet.ainvoke(
             [
                 SystemMessage(
-                    content=PROFILE_UPDATE_SYSTEM,
+                    content=registry.get("profile_update"),
                     additional_kwargs={"cache_control": {"type": "ephemeral"}},
                 ),
                 HumanMessage(content=update_prompt),

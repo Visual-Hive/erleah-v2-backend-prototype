@@ -17,9 +17,17 @@ import {
   handleError,
 } from './stores/pipeline.js';
 
+import {
+  prompts,
+  promptsLoading,
+  promptsError,
+  selectedPromptKey,
+} from './stores/config.js';
+
 // Same-origin via Vite proxy (see vite.config.js)
 // Falls back to direct connection if proxy not available
 const API_BASE = '/api';
+const DEBUG_BASE = '/api/debug';
 
 // Toggle this to test UI without backend
 const USE_MOCK = false;
@@ -222,4 +230,81 @@ async function runMockPipeline(message) {
     })),
     total_tokens: { input: 849, output: 425, cached: 0 },
   });
+}
+
+// ─── Debug API: Prompt CRUD ─────────────────────────────────────────
+
+/**
+ * Fetch all prompts from the debug API and update the store.
+ */
+export async function fetchPrompts() {
+  promptsLoading.set(true);
+  promptsError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/prompts`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const data = await res.json();
+    prompts.set(data);
+    // Auto-select first prompt if none selected
+    const keys = Object.keys(data);
+    selectedPromptKey.update(current => current && data[current] ? current : (keys[0] || null));
+  } catch (err) {
+    console.error('[api] Failed to fetch prompts:', err);
+    promptsError.set(err.message);
+  } finally {
+    promptsLoading.set(false);
+  }
+}
+
+/**
+ * Update a prompt's text via the debug API.
+ * @param {string} key - Prompt key
+ * @param {string} text - New prompt text
+ * @returns {object|null} Updated prompt config, or null on error
+ */
+export async function updatePrompt(key, text) {
+  promptsLoading.set(true);
+  promptsError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/prompts/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const updated = await res.json();
+    prompts.update(current => ({ ...current, [key]: updated }));
+    return updated;
+  } catch (err) {
+    console.error('[api] Failed to update prompt:', err);
+    promptsError.set(err.message);
+    return null;
+  } finally {
+    promptsLoading.set(false);
+  }
+}
+
+/**
+ * Reset a prompt to its default text.
+ * @param {string} key - Prompt key
+ * @returns {object|null} Reset prompt config, or null on error
+ */
+export async function resetPrompt(key) {
+  promptsLoading.set(true);
+  promptsError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/prompts/${key}/reset`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const updated = await res.json();
+    prompts.update(current => ({ ...current, [key]: updated }));
+    return updated;
+  } catch (err) {
+    console.error('[api] Failed to reset prompt:', err);
+    promptsError.set(err.message);
+    return null;
+  } finally {
+    promptsLoading.set(false);
+  }
 }
