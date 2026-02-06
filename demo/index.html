@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erleah AI Assistant - Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .chat-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            text-align: right;
+        }
+
+        .message.user .bubble {
+            background: linear-gradient(135deg, #7b2cbf, #00d4ff);
+            display: inline-block;
+            padding: 12px 20px;
+            border-radius: 20px 20px 5px 20px;
+            max-width: 70%;
+        }
+
+        .message.assistant .bubble {
+            background: rgba(255, 255, 255, 0.1);
+            display: inline-block;
+            padding: 12px 20px;
+            border-radius: 20px 20px 20px 5px;
+            max-width: 85%;
+        }
+
+        .message.system {
+            text-align: center;
+        }
+
+        .message.system .bubble {
+            background: rgba(0, 212, 255, 0.2);
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: #00d4ff;
+        }
+
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .progress-indicator .dot {
+            width: 8px;
+            height: 8px;
+            background: #00d4ff;
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            border-radius: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+            transition: background 0.3s;
+        }
+
+        .input-area input:focus {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .input-area input::placeholder {
+            color: #666;
+        }
+
+        .input-area button {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 30px;
+            background: linear-gradient(135deg, #7b2cbf, #00d4ff);
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .input-area button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .stat-card .label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .quick-prompts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .quick-prompt {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .quick-prompt:hover {
+            background: rgba(0, 212, 255, 0.2);
+            border-color: #00d4ff;
+        }
+
+        .typing-indicator {
+            display: inline-flex;
+            gap: 4px;
+            padding: 12px 20px;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: #888;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .acknowledgment {
+            color: #00d4ff;
+            font-style: italic;
+            margin-bottom: 10px;
+        }
+
+        .trace-id {
+            font-size: 0.75rem;
+            color: #555;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Erleah AI Assistant</h1>
+            <p>Conference Intelligence Platform - Demo</p>
+        </header>
+
+        <div class="chat-container">
+            <div class="quick-prompts">
+                <span class="quick-prompt" onclick="sendQuickPrompt(this)">Where can I get free coffee?</span>
+                <span class="quick-prompt" onclick="sendQuickPrompt(this)">Recommend AI sessions for me</span>
+                <span class="quick-prompt" onclick="sendQuickPrompt(this)">Who sells GPU hardware?</span>
+                <span class="quick-prompt" onclick="sendQuickPrompt(this)">What Python workshops are available?</span>
+            </div>
+
+            <div class="messages" id="messages">
+                <div class="message system">
+                    <div class="bubble">Welcome! Ask me about sessions, exhibitors, or speakers.</div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Ask about the conference..."
+                       onkeypress="if(event.key==='Enter') sendMessage()">
+                <button id="sendBtn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="value" id="statTime">-</div>
+                <div class="label">Response Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="statTokens">-</div>
+                <div class="label">Chunks Received</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="statFirstChunk">-</div>
+                <div class="label">Time to First Chunk</div>
+            </div>
+            <div class="stat-card">
+                <div class="value" id="statTraceId">-</div>
+                <div class="label">Trace ID</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000/api/chat/stream';
+        let isProcessing = false;
+
+        function sendQuickPrompt(el) {
+            document.getElementById('messageInput').value = el.textContent;
+            sendMessage();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message || isProcessing) return;
+
+            isProcessing = true;
+            document.getElementById('sendBtn').disabled = true;
+            input.value = '';
+
+            // Add user message
+            addMessage(message, 'user');
+
+            // Add typing indicator
+            const typingId = addTypingIndicator();
+
+            // Stats tracking
+            const startTime = Date.now();
+            let chunkCount = 0;
+            let firstChunkTime = null;
+            let responseText = '';
+            let acknowledgmentText = '';
+            let traceId = '';
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        user_context: { conference_id: 'etl-2025' }
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let assistantMessageId = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('event:')) {
+                            const eventType = line.slice(6).trim();
+                            continue;
+                        }
+
+                        if (line.startsWith('data:')) {
+                            const data = JSON.parse(line.slice(5).trim());
+
+                            // Handle different event types
+                            if (data.message && !assistantMessageId) {
+                                // Acknowledgment
+                                acknowledgmentText = data.message;
+                                removeTypingIndicator(typingId);
+                                assistantMessageId = addMessage('', 'assistant', acknowledgmentText);
+                            } else if (data.node) {
+                                // Progress update
+                                updateProgress(data.message || data.node);
+                            } else if (data.text) {
+                                // Chunk
+                                if (!firstChunkTime) {
+                                    firstChunkTime = Date.now() - startTime;
+                                }
+                                chunkCount++;
+                                responseText += data.text;
+
+                                if (!assistantMessageId) {
+                                    removeTypingIndicator(typingId);
+                                    assistantMessageId = addMessage('', 'assistant');
+                                }
+                                updateMessage(assistantMessageId, responseText);
+                            } else if (data.trace_id) {
+                                // Done
+                                traceId = data.trace_id;
+                            }
+                        }
+                    }
+                }
+
+                // Update stats
+                const totalTime = Date.now() - startTime;
+                document.getElementById('statTime').textContent = (totalTime / 1000).toFixed(2) + 's';
+                document.getElementById('statTokens').textContent = chunkCount;
+                document.getElementById('statFirstChunk').textContent = firstChunkTime ? (firstChunkTime / 1000).toFixed(2) + 's' : '-';
+                document.getElementById('statTraceId').textContent = traceId.slice(0, 8) + '...';
+
+            } catch (error) {
+                removeTypingIndicator(typingId);
+                addMessage('Error: ' + error.message, 'system');
+            }
+
+            isProcessing = false;
+            document.getElementById('sendBtn').disabled = false;
+            clearProgress();
+        }
+
+        function addMessage(text, type, acknowledgment = '') {
+            const messages = document.getElementById('messages');
+            const id = 'msg-' + Date.now();
+
+            let html = `<div class="message ${type}" id="${id}">`;
+            if (acknowledgment) {
+                html += `<div class="acknowledgment">${acknowledgment}</div>`;
+            }
+            html += `<div class="bubble">${formatText(text)}</div></div>`;
+
+            messages.innerHTML += html;
+            messages.scrollTop = messages.scrollHeight;
+            return id;
+        }
+
+        function updateMessage(id, text) {
+            const bubble = document.querySelector(`#${id} .bubble`);
+            if (bubble) {
+                bubble.innerHTML = formatText(text);
+                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+            }
+        }
+
+        function formatText(text) {
+            // Convert markdown-like formatting
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>')
+                .replace(/- /g, '&bull; ');
+        }
+
+        function addTypingIndicator() {
+            const messages = document.getElementById('messages');
+            const id = 'typing-' + Date.now();
+            messages.innerHTML += `
+                <div class="message assistant" id="${id}">
+                    <div class="typing-indicator">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+            messages.scrollTop = messages.scrollHeight;
+            return id;
+        }
+
+        function removeTypingIndicator(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        let progressEl = null;
+        function updateProgress(message) {
+            if (!progressEl) {
+                const messages = document.getElementById('messages');
+                progressEl = document.createElement('div');
+                progressEl.className = 'progress-indicator';
+                progressEl.innerHTML = '<div class="dot"></div><span></span>';
+                messages.appendChild(progressEl);
+            }
+            progressEl.querySelector('span').textContent = message;
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        }
+
+        function clearProgress() {
+            if (progressEl) {
+                progressEl.remove();
+                progressEl = null;
+            }
+        }
+    </script>
+</body>
+</html>

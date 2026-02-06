@@ -22,11 +22,28 @@ class GrokClient:
             base_url="https://api.x.ai/v1",
         )
         self._model = settings.xai_model
+        has_key = bool(settings.xai_api_key and settings.xai_api_key.strip())
+        logger.info(
+            "  [grok] GrokClient initialized",
+            model=self._model,
+            api_key_configured=has_key,
+        )
 
     async def generate_acknowledgment(
         self, user_message: str, user_profile: dict | None = None
     ) -> str:
         """Generate a contextual acknowledgment. Returns fallback on any error."""
+        import time as _time
+
+        start = _time.perf_counter()
+
+        logger.info(
+            "  [grok] generating acknowledgment",
+            model=self._model,
+            message_preview=user_message[:80],
+            has_profile=bool(user_profile),
+        )
+
         try:
             user_content = f"User message: {user_message}"
             if user_profile and user_profile.get("interests"):
@@ -41,10 +58,22 @@ class GrokClient:
                 max_tokens=60,
                 temperature=0.3,
             )
-            return response.choices[0].message.content.strip()
+            result = (response.choices[0].message.content or "").strip()
+            logger.info(
+                "  [grok] acknowledgment generated",
+                result=result[:100],
+                duration=f"{_time.perf_counter() - start:.3f}s",
+            )
+            return result
         except Exception as e:
-            logger.warning("grok.acknowledgment_failed", error=str(e))
-            return "I'll help you with that."
+            fallback = "I'll help you with that."
+            logger.warning(
+                "  [grok] acknowledgment FAILED — using fallback",
+                error=str(e),
+                fallback=fallback,
+                duration=f"{_time.perf_counter() - start:.3f}s",
+            )
+            return fallback
 
 
 # Singleton

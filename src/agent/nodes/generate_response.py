@@ -28,13 +28,24 @@ async def generate_response(state: AssistantState) -> dict:
     This node is the one whose streaming tokens are forwarded to the client
     via SSE. The graph.astream_events() call filters for this node's output.
     """
-    logger.info("generate_response.start")
+    logger.info("===== NODE 7: GENERATE RESPONSE =====")
     messages = state["messages"]
     user_message = messages[-1].content if messages else ""
     query_results = state.get("query_results", {})
     profile = state.get("user_profile", {})
     intent = state.get("intent", "unknown")
     history = state.get("conversation_history", [])
+
+    # Log what data we're feeding into response generation
+    total_results = sum(len(v) for v in query_results.values())
+    logger.info(
+        "  [generate_response] Preparing context for Sonnet",
+        intent=intent,
+        total_search_results=total_results,
+        tables_with_results=[t for t, v in query_results.items() if v],
+        has_profile=bool(profile),
+        history_count=len(history),
+    )
 
     # Build context for the LLM
     context_parts = [f"User question: {user_message}"]
@@ -71,19 +82,30 @@ async def generate_response(state: AssistantState) -> dict:
 
     try:
         # Use ainvoke (streaming is handled by astream_events at the graph level)
+        logger.info(
+            "  [generate_response] Calling Sonnet to generate user-facing response..."
+        )
         result = await sonnet.ainvoke(
             [
-                SystemMessage(content=GENERATE_RESPONSE_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                SystemMessage(
+                    content=GENERATE_RESPONSE_SYSTEM,
+                    additional_kwargs={"cache_control": {"type": "ephemeral"}},
+                ),
                 HumanMessage(content=generation_prompt),
             ]
         )
 
-        response_text = result.content
+        response_text = str(result.content)
 
         # Extract only entity IDs that are actually mentioned in the response
         referenced_ids = _extract_mentioned_ids(response_text, all_entity_ids)
 
-        logger.info("generate_response.done", response_length=len(response_text), referenced_ids_count=len(referenced_ids))
+        logger.info(
+            "===== NODE 7: GENERATE RESPONSE COMPLETE =====",
+            response_length=len(response_text),
+            response_preview=response_text[:200],
+            referenced_entities=len(referenced_ids),
+        )
 
         return {
             "response_text": response_text,
@@ -91,7 +113,7 @@ async def generate_response(state: AssistantState) -> dict:
             "current_node": "generate_response",
         }
     except Exception as e:
-        logger.error("generate_response.failed", error=str(e))
+        logger.error("  [generate_response] FAILED", error=str(e))
         return {
             "response_text": "I'm sorry, I encountered an error generating a response. Please try again.",
             "referenced_ids": [],

@@ -35,8 +35,12 @@ from src.agent.nodes.update_profile import update_profile
 from src.agent.state import AssistantState
 from src.middleware.logging import trace_id_var
 from src.monitoring.metrics import (
-    LLM_TOKENS, LLM_DURATION, LLM_CALLS, ERRORS,
-    TIME_TO_FIRST_FEEDBACK, TIME_TO_FIRST_CHUNK,
+    LLM_TOKENS,
+    LLM_DURATION,
+    LLM_CALLS,
+    ERRORS,
+    TIME_TO_FIRST_FEEDBACK,
+    TIME_TO_FIRST_CHUNK,
     USER_ABANDONED,
 )
 from src.services.cache import get_cache_service
@@ -49,18 +53,33 @@ WORKFLOW_TIMEOUT = 30.0  # seconds
 
 # --- Conditional edges ---
 
+
 def should_update_profile(state: AssistantState) -> str:
     """Route to update_profile if the message contains profile info."""
-    if state.get("profile_needs_update", False):
-        return "update_profile"
-    return "generate_acknowledgment"
+    needs_update = state.get("profile_needs_update", False)
+    decision = "update_profile" if needs_update else "generate_acknowledgment"
+    logger.info(
+        "  [conditional] should_update_profile?",
+        needs_update=needs_update,
+        decision=decision,
+    )
+    return decision
 
 
 def should_retry(state: AssistantState) -> str:
     """Route to relax_and_retry if there are zero-result tables and retries left."""
-    if state.get("needs_retry", False):
-        return "relax_and_retry"
-    return "generate_response"
+    needs_retry = state.get("needs_retry", False)
+    retry_count = state.get("retry_count", 0)
+    zero_tables = state.get("zero_result_tables", [])
+    decision = "relax_and_retry" if needs_retry else "generate_response"
+    logger.info(
+        "  [conditional] should_retry?",
+        needs_retry=needs_retry,
+        retry_count=retry_count,
+        zero_result_tables=zero_tables,
+        decision=decision,
+    )
+    return decision
 
 
 # --- Build the graph ---
@@ -85,7 +104,10 @@ graph_builder.set_entry_point("fetch_data")
 graph_builder.add_conditional_edges(
     "fetch_data",
     should_update_profile,
-    {"update_profile": "update_profile", "generate_acknowledgment": "generate_acknowledgment"},
+    {
+        "update_profile": "update_profile",
+        "generate_acknowledgment": "generate_acknowledgment",
+    },
 )
 
 # update_profile → generate_acknowledgment
@@ -158,17 +180,54 @@ def _track_llm_usage(event: dict) -> None:
     node = metadata.get("langgraph_node", "unknown")
     model = "unknown"
     if hasattr(output, "response_metadata"):
-        model = output.response_metadata.get("model", "unknown")
+        resp = output.response_metadata
+        model = (
+            resp.get("model", "")
+            or resp.get("model_name", "")
+            or resp.get("model_id", "")
+            or "unknown"
+        )
+    # Fallback: try to get model from the event tags or metadata
+    if model == "unknown":
+        tags = event.get("tags", [])
+        for tag in tags:
+            if "claude" in tag or "sonnet" in tag or "haiku" in tag:
+                model = tag
+                break
+    if model == "unknown":
+        # Last resort: infer from node
+        if node in ("plan_queries", "generate_response", "update_profile"):
+            model = "claude-sonnet"
+        elif node == "evaluate":
+            model = "claude-haiku"
 
     # Extract token counts (LangChain usage_metadata format)
     if isinstance(usage, dict):
         input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
-        output_tokens = usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
-        cached_tokens = usage.get("cache_read_input_tokens", 0) or usage.get("cache_creation_input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0) or usage.get(
+            "completion_tokens", 0
+        )
+        cached_tokens = usage.get("cache_read_input_tokens", 0) or usage.get(
+            "cache_creation_input_tokens", 0
+        )
     else:
-        input_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
-        output_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+        input_tokens = getattr(usage, "input_tokens", 0) or getattr(
+            usage, "prompt_tokens", 0
+        )
+        output_tokens = getattr(usage, "output_tokens", 0) or getattr(
+            usage, "completion_tokens", 0
+        )
         cached_tokens = getattr(usage, "cache_read_input_tokens", 0)
+
+    # Log LLM usage for demo visibility
+    logger.info(
+        "  [llm_usage] LLM call completed",
+        model=model,
+        node=node,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cached_tokens=cached_tokens,
+    )
 
     if input_tokens:
         LLM_TOKENS.labels(model=model, token_type="input").inc(input_tokens)
@@ -197,6 +256,18 @@ async def stream_agent_response(
     first_chunk_sent = False
 
     trace_id = trace_id_var.get("")
+
+    logger.info(
+        "========== PIPELINE START ==========",
+        trace_id=trace_id,
+        message=message[:200],
+        user_context=user_context,
+        timeout=f"{WORKFLOW_TIMEOUT}s",
+    )
+    logger.info(
+        "  Pipeline flow: fetch_data -> [update_profile?] -> acknowledgment -> plan_queries "
+        "-> execute_queries -> check_results -> [retry?] -> generate_response -> evaluate -> END"
+    )
 
     initial_state: AssistantState = {
         "messages": [HumanMessage(content=message)],
@@ -232,6 +303,7 @@ async def stream_agent_response(
     seen_nodes: set[str] = set()
     done_sent = False
     ack_sent = False
+    chunk_count = 0
     referenced_ids: list[str] = []
 
     # Publish progress to Redis for multi-instance visibility
@@ -244,16 +316,29 @@ async def stream_agent_response(
             langgraph_node = metadata.get("langgraph_node", "")
 
             # Track LLM token usage
-            _track_llm_usage(event)
+            _track_llm_usage(event)  # type: ignore[arg-type]
 
             # Send progress events when a new node starts
             if langgraph_node and langgraph_node not in seen_nodes:
                 seen_nodes.add(langgraph_node)
                 progress_msg = PROGRESS_MESSAGES.get(langgraph_node)
+                elapsed = time.perf_counter() - request_start
+
+                logger.info(
+                    "  [sse] progress event",
+                    node=langgraph_node,
+                    message=progress_msg,
+                    elapsed=f"{elapsed:.2f}s",
+                    nodes_seen=list(seen_nodes),
+                )
 
                 if not first_feedback_sent:
                     first_feedback_sent = True
-                    TIME_TO_FIRST_FEEDBACK.observe(time.perf_counter() - request_start)
+                    TIME_TO_FIRST_FEEDBACK.observe(elapsed)
+                    logger.info(
+                        "  [sse] first feedback sent",
+                        time_to_first_feedback=f"{elapsed:.3f}s",
+                    )
 
                 yield {
                     "event": "progress",
@@ -273,18 +358,26 @@ async def stream_agent_response(
             ):
                 ack_sent = True
                 output = event.get("data", {}).get("output", {})
-                ack_text = output.get("acknowledgment_text", "") if isinstance(output, dict) else ""
+                ack_text = (
+                    output.get("acknowledgment_text", "")
+                    if isinstance(output, dict)
+                    else ""
+                )
                 if ack_text:
+                    logger.info(
+                        "  [sse] acknowledgment event",
+                        text=ack_text[:100],
+                        elapsed=f"{time.perf_counter() - request_start:.2f}s",
+                    )
                     yield {
                         "event": "acknowledgment",
                         "data": {"message": ack_text},
                     }
+                else:
+                    logger.info("  [sse] acknowledgment skipped (empty text)")
 
             # Capture referenced_ids when generate_response finishes
-            if (
-                kind == "on_chain_end"
-                and langgraph_node == "generate_response"
-            ):
+            if kind == "on_chain_end" and langgraph_node == "generate_response":
                 output = event.get("data", {}).get("output", {})
                 if isinstance(output, dict):
                     referenced_ids = output.get("referenced_ids", [])
@@ -299,14 +392,26 @@ async def stream_agent_response(
                             if isinstance(block, dict) and block.get("type") == "text":
                                 text = block.get("text", "")
                                 if text:
+                                    chunk_count += 1
                                     if not first_chunk_sent:
                                         first_chunk_sent = True
-                                        TIME_TO_FIRST_CHUNK.observe(time.perf_counter() - request_start)
+                                        ttfc = time.perf_counter() - request_start
+                                        TIME_TO_FIRST_CHUNK.observe(ttfc)
+                                        logger.info(
+                                            "  [sse] first chunk sent",
+                                            time_to_first_chunk=f"{ttfc:.3f}s",
+                                        )
                                     yield {"event": "chunk", "data": {"text": text}}
                     elif isinstance(content, str):
+                        chunk_count += 1
                         if not first_chunk_sent:
                             first_chunk_sent = True
-                            TIME_TO_FIRST_CHUNK.observe(time.perf_counter() - request_start)
+                            ttfc = time.perf_counter() - request_start
+                            TIME_TO_FIRST_CHUNK.observe(ttfc)
+                            logger.info(
+                                "  [sse] first chunk sent",
+                                time_to_first_chunk=f"{ttfc:.3f}s",
+                            )
                         yield {"event": "chunk", "data": {"text": content}}
 
             # Detect when generate_response finishes → send done before evaluate
@@ -316,6 +421,13 @@ async def stream_agent_response(
                 and not done_sent
             ):
                 done_sent = True
+                elapsed = time.perf_counter() - request_start
+                logger.info(
+                    "  [sse] done event — response complete",
+                    chunks_streamed=chunk_count,
+                    referenced_ids_count=len(referenced_ids),
+                    elapsed=f"{elapsed:.2f}s",
+                )
                 yield {
                     "event": "done",
                     "data": {
@@ -325,16 +437,32 @@ async def stream_agent_response(
                 }
 
     except asyncio.TimeoutError:
+        elapsed = time.perf_counter() - request_start
+        logger.error(
+            "  [pipeline] TIMEOUT — workflow exceeded deadline",
+            timeout=f"{WORKFLOW_TIMEOUT}s",
+            elapsed=f"{elapsed:.2f}s",
+            nodes_completed=list(seen_nodes),
+        )
         ERRORS.labels(error_type="WorkflowTimeout", node="pipeline").inc()
         error_info = get_user_error(WorkflowTimeout())
         yield {"event": "error", "data": error_info}
     except Exception as e:
+        elapsed = time.perf_counter() - request_start
+        logger.error(
+            "  [pipeline] ERROR — unhandled exception",
+            error_type=type(e).__name__,
+            error=str(e),
+            elapsed=f"{elapsed:.2f}s",
+            nodes_completed=list(seen_nodes),
+        )
         ERRORS.labels(error_type=type(e).__name__, node="pipeline").inc()
         error_info = get_user_error(e)
         yield {"event": "error", "data": error_info}
 
     # Fallback: if done was never sent (e.g. error path), send it now
     if not done_sent:
+        logger.info("  [sse] fallback done event (error path)")
         yield {
             "event": "done",
             "data": {
@@ -342,6 +470,18 @@ async def stream_agent_response(
                 "referenced_ids": referenced_ids,
             },
         }
+
+    # Pipeline completion summary
+    total_elapsed = time.perf_counter() - request_start
+    logger.info(
+        "========== PIPELINE COMPLETE ==========",
+        trace_id=trace_id,
+        total_duration=f"{total_elapsed:.2f}s",
+        nodes_visited=list(seen_nodes),
+        chunks_streamed=chunk_count,
+        referenced_ids=len(referenced_ids),
+        had_error=not done_sent,
+    )
 
 
 async def _stream_with_timeout(initial_state: AssistantState):

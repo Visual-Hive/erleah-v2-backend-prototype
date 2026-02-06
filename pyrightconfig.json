@@ -1,0 +1,12 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "include": ["src"],
+  "exclude": [
+    "**/__pycache__",
+    "scripts",
+    "tests"
+  ]
+}

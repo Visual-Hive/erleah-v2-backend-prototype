@@ -29,7 +29,7 @@ class CacheService:
 
     async def connect(self) -> None:
         try:
-            self._redis = Redis.from_url(
+            redis = Redis.from_url(
                 settings.redis_url,
                 decode_responses=True,
                 socket_connect_timeout=5,
@@ -37,7 +37,8 @@ class CacheService:
                 max_connections=50,
                 retry_on_timeout=True,
             )
-            await self._redis.ping()
+            await redis.ping()  # type: ignore[misc]
+            self._redis = redis
             logger.info("cache.connected", url=settings.redis_url)
         except Exception as e:
             logger.warning("cache.connect_failed", error=str(e))
@@ -118,7 +119,7 @@ class CacheService:
         if not self._redis:
             return False
         try:
-            await self._redis.ping()
+            await self._redis.ping()  # type: ignore[misc]
             return True
         except Exception:
             return False

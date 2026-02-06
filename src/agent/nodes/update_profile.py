@@ -20,7 +20,7 @@ async def update_profile(state: AssistantState) -> dict:
     Uses Sonnet to merge new information into the existing profile,
     then persists the update to Directus.
     """
-    logger.info("update_profile.start")
+    logger.info("===== NODE 2: UPDATE PROFILE =====")
     user_context = state.get("user_context", {})
     user_id = user_context.get("user_id")
     profile = state.get("user_profile", {})
@@ -28,10 +28,11 @@ async def update_profile(state: AssistantState) -> dict:
     user_message = messages[-1].content if messages else ""
 
     if not user_id or not profile:
-        logger.info("update_profile.skip", reason="no user_id or profile")
+        logger.info("  [update_profile] SKIPPED — no user_id or empty profile")
         return {"profile_updates": None, "current_node": "update_profile"}
 
     try:
+        logger.info("  [update_profile] Merging new info into profile via Sonnet...")
         update_prompt = (
             f"Current profile:\n{json.dumps(profile, default=str)}\n\n"
             f"User message:\n{user_message}\n\n"
@@ -39,11 +40,14 @@ async def update_profile(state: AssistantState) -> dict:
         )
         result = await sonnet.ainvoke(
             [
-                SystemMessage(content=PROFILE_UPDATE_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                SystemMessage(
+                    content=PROFILE_UPDATE_SYSTEM,
+                    additional_kwargs={"cache_control": {"type": "ephemeral"}},
+                ),
                 HumanMessage(content=update_prompt),
             ]
         )
-        updated_profile = json.loads(result.content)
+        updated_profile = json.loads(str(result.content))
 
         # Persist to Directus
         client = get_directus_client()
@@ -53,12 +57,15 @@ async def update_profile(state: AssistantState) -> dict:
         cache = get_cache_service()
         await cache.delete(make_key("profile", user_id))
 
-        logger.info("update_profile.done", updates=updated_profile)
+        logger.info(
+            "===== NODE 2: UPDATE PROFILE COMPLETE =====",
+            updated_keys=list(updated_profile.keys()),
+        )
         return {
             "profile_updates": updated_profile,
             "user_profile": updated_profile,
             "current_node": "update_profile",
         }
     except Exception as e:
-        logger.warning("update_profile.failed", error=str(e))
+        logger.warning("  [update_profile] FAILED", error=str(e))
         return {"profile_updates": None, "current_node": "update_profile"}

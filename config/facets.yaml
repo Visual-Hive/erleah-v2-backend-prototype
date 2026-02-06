@@ -1,94 +1,112 @@
+# Production ETL 2025 facet definitions
+# Attendees and exhibitors use the same 8 facet keys (from Directus vector_profile)
+# Sessions and speakers need LLM-generated facets (no vector_profile in Directus)
+
 exhibitors:
   facets:
-    - key: what_they_sell
+    - key: buying_intent
       weight: 1.5
-      description: "Products and services offered"
-    - key: who_they_target
+      pair_with: selling_intent
+      description: "What this exhibitor is looking to buy or acquire"
+    - key: selling_intent
+      weight: 1.5
+      pair_with: buying_intent
+      description: "Products and services this exhibitor offers"
+    - key: seeking_to_meet
       weight: 1.2
-      description: "Ideal customer profiles"
-    - key: their_expertise
+      pair_with: i_am_this_person
+      description: "Types of people/companies this exhibitor wants to connect with"
+    - key: i_am_this_person
+      weight: 1.2
+      pair_with: seeking_to_meet
+      description: "Professional identity and company profile"
+    - key: services_seeking
       weight: 1.0
-      description: "Company expertise areas"
-    - key: industries_they_serve
-      weight: 0.9
-      description: "Target industries"
-    - key: company_size_focus
-      weight: 0.7
-      description: "Enterprise, SMB, or startup focus"
-    - key: geographic_focus
-      weight: 0.6
-      description: "Regions they serve"
+      pair_with: services_providing
+      description: "Services this exhibitor is looking for"
+    - key: services_providing
+      weight: 1.0
+      pair_with: services_seeking
+      description: "Services this exhibitor provides"
+    - key: challenges_facing
+      weight: 0.8
+      pair_with: problems_i_solve
+      description: "Business challenges and pain points"
+    - key: problems_i_solve
+      weight: 0.8
+      pair_with: challenges_facing
+      description: "Problems this exhibitor's solutions address"
 
 sessions:
   facets:
     - key: session_topic
       weight: 1.5
-      description: "Core subject matter"
+      description: "Core subject matter and themes"
     - key: target_audience
       weight: 1.2
-      description: "Intended attendee profiles"
+      description: "Intended attendee profiles and roles"
     - key: learning_outcomes
       weight: 1.3
-      description: "What attendees will gain"
-    - key: industry_focus
+      description: "Key takeaways and skills gained"
+    - key: industry_relevance
       weight: 0.9
-      description: "Relevant industries"
-    - key: difficulty_level
+      description: "Relevant industries and sectors"
+    - key: problems_addressed
+      weight: 1.0
+      description: "Business challenges this session helps solve"
+    - key: technologies_covered
       weight: 0.8
-      description: "Beginner, intermediate, advanced"
-    - key: session_format
-      weight: 0.5
-      description: "Workshop, panel, keynote, etc."
+      description: "Technologies, tools, and platforms discussed"
 
 speakers:
   facets:
     - key: speaker_expertise
       weight: 1.0
-      description: "Areas of professional expertise"
+      description: "Areas of professional expertise and specialization"
     - key: speaking_topics
       weight: 0.9
-      description: "Topics covered in talks"
+      description: "Topics and themes covered in talks"
     - key: audience_value
       weight: 0.8
-      description: "Value provided to attendees"
-    - key: speaker_background
+      description: "Value and insights provided to attendees"
+    - key: industry_experience
       weight: 0.7
-      description: "Professional background"
-    - key: connect_with_me
-      weight: 0.5
-      description: "Networking and connection topics"
+      description: "Industries and sectors of experience"
+    - key: problems_they_solve
+      weight: 0.8
+      description: "Challenges and problems their expertise addresses"
 
 attendees:
   facets:
-    - key: products_i_want_to_sell
+    - key: buying_intent
       weight: 1.5
-      pair_with: products_i_want_to_buy
-      description: "Products or services offered"
-    - key: products_i_want_to_buy
+      pair_with: selling_intent
+      description: "What this attendee is looking to buy or acquire"
+    - key: selling_intent
       weight: 1.5
-      pair_with: products_i_want_to_sell
-      description: "Products or services needed"
-    - key: who_i_am
+      pair_with: buying_intent
+      description: "Products and services this attendee offers"
+    - key: seeking_to_meet
       weight: 1.2
-      pair_with: who_im_looking_for
-      description: "Professional identity and role"
-    - key: who_im_looking_for
+      pair_with: i_am_this_person
+      description: "Types of people this attendee wants to connect with"
+    - key: i_am_this_person
+      weight: 1.2
+      pair_with: seeking_to_meet
+      description: "Professional identity and role description"
+    - key: services_seeking
       weight: 1.0
-      pair_with: who_i_am
-      description: "Types of people to connect with"
-    - key: my_expertise
+      pair_with: services_providing
+      description: "Services this attendee is looking for"
+    - key: services_providing
       weight: 1.0
-      pair_with: what_i_want_to_learn
-      description: "Areas of professional expertise"
-    - key: what_i_want_to_learn
-      weight: 1.0
-      pair_with: my_expertise
-      description: "Topics of interest for learning"
-    - key: industries_i_work_in
+      pair_with: services_seeking
+      description: "Services this attendee provides"
+    - key: challenges_facing
       weight: 0.8
-      pair_with: industries_i_work_in
-      description: "Industry sectors"
-    - key: my_goals_at_event
-      weight: 0.7
-      pair_with: my_goals_at_event
-      description: "Conference objectives"
+      pair_with: problems_i_solve
+      description: "Business challenges and pain points"
+    - key: problems_i_solve
+      weight: 0.8
+      pair_with: challenges_facing
+      description: "Problems this attendee's expertise can solve"

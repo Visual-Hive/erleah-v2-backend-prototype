@@ -14,15 +14,22 @@ async def generate_acknowledgment(state: AssistantState) -> dict:
     This runs early in the pipeline so the user gets immediate feedback
     while heavier processing (plan_queries, execute_queries) continues.
     """
-    logger.info("generate_acknowledgment.start")
+    logger.info("===== NODE 3: GENERATE ACKNOWLEDGMENT =====")
     messages = state["messages"]
     user_message = messages[-1].content if messages else ""
     user_profile = state.get("user_profile", {})
 
+    logger.info(
+        "  [acknowledgment] Calling Grok/xAI for quick acknowledgment...",
+        user_message=str(user_message)[:100],
+    )
     grok = get_grok_client()
-    ack_text = await grok.generate_acknowledgment(user_message, user_profile)
+    ack_text = await grok.generate_acknowledgment(str(user_message), user_profile)
 
-    logger.info("generate_acknowledgment.done", ack_length=len(ack_text))
+    logger.info(
+        "===== NODE 3: ACKNOWLEDGMENT COMPLETE =====",
+        acknowledgment=ack_text,
+    )
 
     return {
         "acknowledgment_text": ack_text,

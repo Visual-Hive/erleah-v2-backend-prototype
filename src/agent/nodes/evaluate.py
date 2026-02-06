@@ -21,10 +21,10 @@ async def evaluate(state: AssistantState) -> dict:
     before this node completes, so it doesn't block the user.
     Results are stored in Directus when available.
     """
-    logger.info("evaluate.start")
+    logger.info("===== NODE 8: EVALUATE (Background) =====")
 
     if not settings.evaluation_enabled:
-        logger.info("evaluate.skip", reason="evaluation_disabled")
+        logger.info("  [evaluate] SKIPPED — evaluation disabled in config")
         return {
             "quality_score": None,
             "confidence_score": None,
@@ -47,14 +47,18 @@ async def evaluate(state: AssistantState) -> dict:
     confidence_score = None
 
     try:
+        logger.info("  [evaluate] Calling Haiku to score response quality...")
         result = await haiku.ainvoke(
             [
-                SystemMessage(content=EVALUATE_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                SystemMessage(
+                    content=EVALUATE_SYSTEM,
+                    additional_kwargs={"cache_control": {"type": "ephemeral"}},
+                ),
                 HumanMessage(content=eval_prompt),
             ]
         )
 
-        content = result.content.strip()
+        content = str(result.content).strip()
         if content.startswith("```"):
             content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
@@ -63,7 +67,7 @@ async def evaluate(state: AssistantState) -> dict:
         confidence_score = scores.get("confidence_score")
 
         logger.info(
-            "evaluate.done",
+            "===== NODE 8: EVALUATE COMPLETE =====",
             quality_score=quality_score,
             confidence_score=confidence_score,
         )
@@ -78,10 +82,12 @@ async def evaluate(state: AssistantState) -> dict:
                     conversation_id, message_id, quality_score, confidence_score or 0.0
                 )
             except Exception as e:
-                logger.warning("evaluate.store_failed", error=str(e))
+                logger.warning(
+                    "  [evaluate] Failed to store evaluation in Directus", error=str(e)
+                )
 
     except Exception as e:
-        logger.warning("evaluate.failed", error=str(e))
+        logger.warning("  [evaluate] Scoring FAILED", error=str(e))
 
     return {
         "quality_score": quality_score,

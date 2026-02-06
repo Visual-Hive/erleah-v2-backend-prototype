@@ -17,12 +17,19 @@ async def plan_queries(state: AssistantState) -> dict:
 
     The plan includes intent, query_mode, and a list of queries to execute.
     """
-    logger.info("plan_queries.start")
+    logger.info("===== NODE 4: PLAN QUERIES =====")
     messages = state["messages"]
     user_message = messages[-1].content if messages else ""
     profile = state.get("user_profile", {})
     history = state.get("conversation_history", [])
     user_context = state.get("user_context", {})
+
+    logger.info(
+        "  [plan_queries] Building context for Sonnet...",
+        user_message=str(user_message)[:200],
+        has_profile=bool(profile),
+        history_count=len(history),
+    )
 
     context_parts = [f"User message: {user_message}"]
     if profile:
@@ -36,15 +43,19 @@ async def plan_queries(state: AssistantState) -> dict:
     plan_prompt = "\n\n".join(context_parts)
 
     try:
+        logger.info("  [plan_queries] Calling Sonnet to generate search plan...")
         result = await sonnet.ainvoke(
             [
-                SystemMessage(content=PLAN_QUERIES_SYSTEM, additional_kwargs={"cache_control": {"type": "ephemeral"}}),
+                SystemMessage(
+                    content=PLAN_QUERIES_SYSTEM,
+                    additional_kwargs={"cache_control": {"type": "ephemeral"}},
+                ),
                 HumanMessage(content=plan_prompt),
             ]
         )
 
         # Parse JSON from response (strip markdown fences if present)
-        content = result.content.strip()
+        content = str(result.content).strip()
         if content.startswith("```"):
             content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
@@ -55,10 +66,11 @@ async def plan_queries(state: AssistantState) -> dict:
         planned_queries = plan.get("queries", [])
 
         logger.info(
-            "plan_queries.done",
+            "===== NODE 4: PLAN QUERIES COMPLETE =====",
             intent=intent,
             query_mode=query_mode,
             num_queries=len(planned_queries),
+            queries=planned_queries,
         )
 
         return {
@@ -68,7 +80,7 @@ async def plan_queries(state: AssistantState) -> dict:
             "current_node": "plan_queries",
         }
     except Exception as e:
-        logger.error("plan_queries.failed", error=str(e))
+        logger.error("  [plan_queries] FAILED", error=str(e))
         return {
             "intent": "unknown",
             "query_mode": "hybrid",

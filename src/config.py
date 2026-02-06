@@ -8,7 +8,8 @@ class Settings(BaseSettings):
 
     # OpenAI (Embeddings)
     openai_api_key: str
-    embedding_model: str = "text-embedding-3-small"
+    embedding_model: str = "text-embedding-3-large"
+    vector_size: int = 3072  # Must match embedding model dimensions
 
     # Databases
     directus_url: str
@@ -63,4 +64,4 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",")]
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

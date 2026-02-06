@@ -54,7 +54,7 @@ async def relax_and_retry(state: AssistantState) -> dict:
     - retry_count=1: Switch to master search (remove facet structure)
     Preserves existing results from tables that already have results.
     """
-    logger.info("relax_and_retry.start")
+    logger.info("===== NODE 6b: RELAX AND RETRY =====")
     zero_tables = state.get("zero_result_tables", [])
     planned_queries = state.get("planned_queries", [])
     user_context = state.get("user_context", {})
@@ -62,11 +62,26 @@ async def relax_and_retry(state: AssistantState) -> dict:
     query_results = dict(state.get("query_results", {}))
     retry_count = state.get("retry_count", 0)
 
+    logger.info(
+        "  [relax_retry] Retrying tables with zero results",
+        zero_tables=zero_tables,
+        retry_count=retry_count,
+    )
+
     # Find original queries for zero-result tables
     retry_queries = [q for q in planned_queries if q.get("table") in zero_tables]
 
     # Relax each query's filters
     relaxed_queries = [_relax_query(q, retry_count) for q in retry_queries]
+    for rq in relaxed_queries:
+        logger.info(
+            "  [relax_retry] Relaxed query: table=%s mode=%s threshold=%s limit=%d strategy=%s",
+            rq.get("table", "?"),
+            rq.get("search_mode", "?"),
+            rq.get("score_threshold", "?"),
+            rq.get("limit", 0),
+            rq.get("relaxation", "?"),
+        )
 
     async def _retry_query(q: dict) -> tuple[str, list]:
         table = q.get("table", "sessions")
@@ -86,7 +101,9 @@ async def relax_and_retry(state: AssistantState) -> dict:
             )
             return table, [asdict(r) for r in results]
         except Exception as e:
-            logger.warning("retry_query.failed", table=table, error=str(e))
+            logger.warning(
+                "  [relax_retry] Retry query FAILED: table=%s error=%s", table, str(e)
+            )
             return table, []
 
     tasks = [_retry_query(q) for q in relaxed_queries]
@@ -98,14 +115,16 @@ async def relax_and_retry(state: AssistantState) -> dict:
             query_results[table] = results
 
     total = sum(len(v) for v in query_results.values())
-    relaxation_type = relaxed_queries[0].get("relaxation", "unknown") if relaxed_queries else "none"
+    relaxation_type = (
+        relaxed_queries[0].get("relaxation", "unknown") if relaxed_queries else "none"
+    )
 
     logger.info(
-        "relax_and_retry.done",
+        "===== NODE 6b: RELAX AND RETRY COMPLETE =====",
         total_results=total,
         retry_count=retry_count + 1,
         relaxation=relaxation_type,
-        zero_tables=zero_tables,
+        retried_tables=zero_tables,
     )
 
     return {

@@ -1,15 +1,33 @@
 """
-Script này tạo dữ liệu giả và nạp vào Qdrant để test Agent.
-Chạy bằng lệnh: python -m scripts.ingest_mock
+DEPRECATED: Use scripts/seed_data.py instead.
+
+This script only creates 3 sessions + 3 exhibitors with monolithic embeddings.
+It does NOT support faceted search, attendees, multi-conference, or Directus seeding.
+
+Replacement: python -m scripts.seed_data
+             python -m scripts.seed_data --dry-run   (preview stats)
+
+Original description:
+  Script này tạo dữ liệu giả và nạp vào Qdrant để test Agent.
+  Chạy bằng lệnh: python -m scripts.ingest_mock
 """
 
 import asyncio
 import uuid
 import sys
 import os
+import warnings
 
 # Thêm thư mục gốc vào path để import được src
 sys.path.append(os.getcwd())
+
+warnings.warn(
+    "ingest_mock.py is DEPRECATED. Use 'python -m scripts.seed_data' instead. "
+    "See scripts/seed_data.py for comprehensive seed data with all entity types, "
+    "faceted search, attendees, and multi-conference support.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from qdrant_client.http.models import PointStruct
 from src.services.qdrant import get_qdrant_service

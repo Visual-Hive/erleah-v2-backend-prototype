@@ -13,9 +13,10 @@ logger = structlog.get_logger()
 
 # --- Circuit Breaker ---
 
+
 class CircuitState(Enum):
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Failing, reject immediately
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Failing, reject immediately
     HALF_OPEN = "half_open"  # Testing if service recovered
 
 
@@ -75,7 +76,9 @@ class CircuitBreaker:
         if state == CircuitState.HALF_OPEN:
             self._half_open_calls += 1
             if self._half_open_calls > self.half_open_max_calls:
-                raise CircuitBreakerOpen(f"Circuit breaker '{self.name}' half-open limit reached")
+                raise CircuitBreakerOpen(
+                    f"Circuit breaker '{self.name}' half-open limit reached"
+                )
 
         try:
             result = await func(*args, **kwargs)
@@ -90,6 +93,7 @@ class CircuitBreaker:
 
 class CircuitBreakerOpen(Exception):
     """Raised when circuit breaker is in open state."""
+
     pass
 
 
@@ -105,6 +109,7 @@ def get_circuit_breaker(name: str) -> CircuitBreaker:
 
 # --- Retry with backoff ---
 
+
 def async_retry(
     max_retries: int = 3,
     base_delay: float = 0.5,
@@ -116,17 +121,18 @@ def async_retry(
     Replaces tenacity to avoid an extra dependency while providing
     the same core functionality.
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            last_exception = None
+            last_exception: Exception | None = None
             for attempt in range(max_retries + 1):
                 try:
                     return await func(*args, **kwargs)
                 except exceptions as e:
                     last_exception = e
                     if attempt < max_retries:
-                        delay = min(base_delay * (2 ** attempt), max_delay)
+                        delay = min(base_delay * (2**attempt), max_delay)
                         logger.warning(
                             "retry.attempt",
                             func=func.__name__,
@@ -136,6 +142,10 @@ def async_retry(
                             error=str(e),
                         )
                         await asyncio.sleep(delay)
+            # last_exception is guaranteed non-None since max_retries + 1 >= 1
+            assert last_exception is not None
             raise last_exception
+
         return wrapper
+
     return decorator

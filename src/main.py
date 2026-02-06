@@ -24,9 +24,17 @@ from src.middleware.logging import TraceIdMiddleware, configure_structlog
 from src.middleware.metrics import MetricsMiddleware, LoadMonitoringMiddleware
 from src.models.api import ChatRequest, ChatResponse, HealthResponse, ServiceStatus
 from src.monitoring.metrics import (
-    ACTIVE_REQUESTS, ACTIVE_WORKERS, QUEUE_SIZE, QUEUE_UTILIZATION,
-    MEMORY_USAGE, CPU_USAGE, ERRORS, WORKER_DURATION,
-    REQUESTS_QUEUED, REQUESTS_REJECTED, USER_ABANDONED,
+    ACTIVE_REQUESTS,
+    ACTIVE_WORKERS,
+    QUEUE_SIZE,
+    QUEUE_UTILIZATION,
+    MEMORY_USAGE,
+    CPU_USAGE,
+    ERRORS,
+    WORKER_DURATION,
+    REQUESTS_QUEUED,
+    REQUESTS_REJECTED,
+    USER_ABANDONED,
 )
 from src.services.cache import get_cache_service
 from src.services.directus import get_directus_client
@@ -50,7 +58,9 @@ async def lifespan(app: FastAPI):
     """Lifecycle manager for startup/shutdown tasks."""
     # Startup
     logger.info("Starting Erleah backend...")
-    logger.info("app.startup", environment=settings.environment, model=settings.anthropic_model)
+    logger.info(
+        "app.startup", environment=settings.environment, model=settings.anthropic_model
+    )
 
     # Initialize Redis cache
     cache = get_cache_service()
@@ -70,7 +80,11 @@ async def lifespan(app: FastAPI):
         for i in range(settings.worker_pool_size)
     ]
     ACTIVE_WORKERS.set(settings.worker_pool_size)
-    logger.info("worker_pool.started", workers=settings.worker_pool_size, max_queue=settings.max_queue_size)
+    logger.info(
+        "worker_pool.started",
+        workers=settings.worker_pool_size,
+        max_queue=settings.max_queue_size,
+    )
 
     # Start resource monitor
     app.state.resource_monitor = asyncio.create_task(_resource_monitor())
@@ -95,7 +109,9 @@ async def lifespan(app: FastAPI):
             timeout=30.0,
         )
     except asyncio.TimeoutError:
-        logger.warning("worker_pool.drain_timeout", remaining=app.state.request_queue.qsize())
+        logger.warning(
+            "worker_pool.drain_timeout", remaining=app.state.request_queue.qsize()
+        )
         for w in app.state.workers:
             w.cancel()
 
@@ -218,7 +234,9 @@ async def _build_health_response() -> HealthResponse:
     try:
         cache = get_cache_service()
         redis_ok = await cache.ping()
-        services.append(ServiceStatus(name="redis", status="healthy" if redis_ok else "unhealthy"))
+        services.append(
+            ServiceStatus(name="redis", status="healthy" if redis_ok else "unhealthy")
+        )
     except Exception:
         services.append(ServiceStatus(name="redis", status="unhealthy"))
 
@@ -234,7 +252,12 @@ async def _build_health_response() -> HealthResponse:
     try:
         client = get_directus_client()
         resp = await client._client.get("/server/ping")
-        services.append(ServiceStatus(name="directus", status="healthy" if resp.status_code == 200 else "unhealthy"))
+        services.append(
+            ServiceStatus(
+                name="directus",
+                status="healthy" if resp.status_code == 200 else "unhealthy",
+            )
+        )
     except Exception:
         services.append(ServiceStatus(name="directus", status="unhealthy"))
 
@@ -277,23 +300,57 @@ async def chat_stream(request: ChatRequest):
         - event: done (completion with trace_id + referenced_ids)
         - event: error (on failure)
     """
+    rate_key = (
+        request.user_context.user_id
+        or request.user_context.conversation_id
+        or "anonymous"
+    )
+    message = request.message
+    user_context_dict = request.user_context.model_dump(exclude_none=True)
+
+    logger.info(
+        "========== SSE REQUEST ==========",
+        endpoint="/api/chat/stream",
+        message_preview=message[:120],
+        user_id=request.user_context.user_id,
+        conference_id=request.user_context.conference_id,
+        conversation_id=request.user_context.conversation_id,
+        rate_key=rate_key,
+    )
+
     # Rate limiting
-    rate_key = request.user_context.user_id or request.user_context.conversation_id or "anonymous"
     limiter = get_rate_limiter()
     if not limiter.is_allowed(rate_key):
+        logger.warning(
+            "  [endpoint] RATE LIMITED — rejecting request",
+            rate_key=rate_key,
+        )
         error_info = get_user_error(RateLimited())
         return JSONResponse(status_code=429, content=error_info)
+    logger.info("  [endpoint] rate limit check: PASSED", rate_key=rate_key)
 
     # Resource-based throttling
     if not _check_resources():
+        logger.warning("  [endpoint] RESOURCE THROTTLE — rejecting request")
         return JSONResponse(
             status_code=503,
-            content={"error": "Server under heavy load. Please try again shortly.", "can_retry": True},
+            content={
+                "error": "Server under heavy load. Please try again shortly.",
+                "can_retry": True,
+            },
         )
+    logger.info("  [endpoint] resource check: PASSED")
 
     # Check queue capacity
     queue = app.state.request_queue
+    queue_current = queue.qsize()
+    queue_max = settings.max_queue_size
     if queue.full():
+        logger.warning(
+            "  [endpoint] QUEUE FULL — rejecting request",
+            queue_size=queue_current,
+            max_queue=queue_max,
+        )
         ERRORS.labels(error_type="QueueFull", node="endpoint").inc()
         REQUESTS_REJECTED.inc()
         error_info = get_user_error(QueueFull())
@@ -302,9 +359,11 @@ async def chat_stream(request: ChatRequest):
             content=error_info,
             headers={"Retry-After": "5"},
         )
-
-    message = request.message
-    user_context = request.user_context.model_dump(exclude_none=True)
+    logger.info(
+        "  [endpoint] queue check: PASSED",
+        queue_size=queue_current,
+        max_queue=queue_max,
+    )
 
     REQUESTS_QUEUED.inc()
 
@@ -312,10 +371,13 @@ async def chat_stream(request: ChatRequest):
         """Generate SSE events from agent stream."""
         ACTIVE_REQUESTS.inc()
         start = time.perf_counter()
+        event_count = 0
+        logger.info("  [sse_stream] starting event generator")
         try:
-            async for event in stream_agent_response(message, user_context):
+            async for event in stream_agent_response(message, user_context_dict):
                 event_type = event.get("event", "message")
                 event_data = event.get("data", {})
+                event_count += 1
 
                 yield {
                     "event": event_type,
@@ -323,16 +385,28 @@ async def chat_stream(request: ChatRequest):
                 }
         except asyncio.CancelledError:
             # Client disconnected
+            elapsed = time.perf_counter() - start
+            logger.warning(
+                "  [sse_stream] CLIENT DISCONNECTED",
+                events_sent=event_count,
+                elapsed=f"{elapsed:.2f}s",
+            )
             USER_ABANDONED.inc()
             raise
         finally:
             ACTIVE_REQUESTS.dec()
             duration = time.perf_counter() - start
             WORKER_DURATION.observe(duration)
+            logger.info(
+                "  [sse_stream] event generator finished",
+                events_sent=event_count,
+                total_duration=f"{duration:.2f}s",
+            )
 
     QUEUE_SIZE.set(queue.qsize())
     QUEUE_UTILIZATION.set(queue.qsize() / settings.max_queue_size)
 
+    logger.info("  [endpoint] starting SSE response stream")
     return EventSourceResponse(event_generator())
 
 
@@ -346,8 +420,54 @@ async def chat_non_streaming(request: ChatRequest):
             "events": [...]
         }
     """
+    rate_key = (
+        request.user_context.user_id
+        or request.user_context.conversation_id
+        or "anonymous"
+    )
+
+    logger.info(
+        "========== NON-STREAMING REQUEST ==========",
+        endpoint="/api/chat",
+        message_preview=request.message[:120],
+        user_id=request.user_context.user_id,
+        conference_id=request.user_context.conference_id,
+        rate_key=rate_key,
+    )
+
     # Rate limiting
-    rate_key = request.user_context.user_id or request.user_context.conversation_id or "anonymous"
+    limiter = get_rate_limiter()
+    if not limiter.is_allowed(rate_key):
+        logger.warning("  [endpoint] RATE LIMITED", rate_key=rate_key)
+        error_info = get_user_error(RateLimited())
+        return JSONResponse(status_code=429, content=error_info)
+
+    message = request.message
+    user_context = request.user_context.model_dump(exclude_none=True)
+
+    # Collect all events
+    events = []
+    response_text = ""
+    start = time.perf_counter()
+
+    async for event in stream_agent_response(message, user_context):
+        events.append(event)
+
+        if event["event"] == "chunk":
+            response_text += event["data"].get("text", "")
+
+    duration = time.perf_counter() - start
+    logger.info(
+        "  [endpoint] non-streaming response complete",
+        events_count=len(events),
+        response_length=len(response_text),
+        duration=f"{duration:.2f}s",
+    )
+
+    return ChatResponse(
+        response=response_text.strip(),
+        events=events,
+    )
     limiter = get_rate_limiter()
     if not limiter.is_allowed(rate_key):
         error_info = get_user_error(RateLimited())
