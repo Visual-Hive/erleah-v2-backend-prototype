@@ -59,6 +59,7 @@ function createInitialState() {
     referencedIds: [],
     summary: null,          // pipeline_summary data
     error: null,
+    eventsReceived: 0,
   };
 }
 
@@ -76,7 +77,7 @@ export function resetPipeline() {
 
 /** Start a new pipeline run */
 export function startPipeline() {
-  pipeline.update(state => ({
+  pipeline.update(() => ({
     ...createInitialState(),
     status: 'running',
     startedAt: Date.now(),
@@ -86,38 +87,45 @@ export function startPipeline() {
 /** Handle node_start event */
 export function handleNodeStart(data) {
   const { node, ts } = data;
+  if (!node) return;
   pipeline.update(state => {
     const nodes = { ...state.nodes };
-    nodes[node] = {
-      ...nodes[node],
-      status: 'running',
-      startedAt: ts * 1000,  // convert to ms
-    };
-    return { ...state, nodes };
+    if (nodes[node]) {
+      nodes[node] = {
+        ...nodes[node],
+        status: 'running',
+        startedAt: ts ? ts * 1000 : Date.now(),
+      };
+    }
+    return { ...state, nodes, eventsReceived: state.eventsReceived + 1 };
   });
 }
 
 /** Handle node_end event */
 export function handleNodeEnd(data) {
   const { node, duration_ms, output, llm } = data;
+  if (!node) return;
   pipeline.update(state => {
     const nodes = { ...state.nodes };
-    nodes[node] = {
-      ...nodes[node],
-      status: 'complete',
-      duration_ms,
-      output: output || null,
-      llm: llm || null,
-    };
-    return { ...state, nodes };
+    if (nodes[node]) {
+      nodes[node] = {
+        ...nodes[node],
+        status: 'complete',
+        duration_ms: duration_ms || null,
+        output: output || null,
+        llm: llm || null,
+      };
+    }
+    return { ...state, nodes, eventsReceived: state.eventsReceived + 1 };
   });
 }
 
-/** Handle acknowledgment event */
+/** Handle acknowledgment event - note: backend sends { text: "..." } */
 export function handleAcknowledgment(data) {
   pipeline.update(state => ({
     ...state,
-    acknowledgmentText: data.message || '',
+    acknowledgmentText: data.text || data.message || '',
+    eventsReceived: state.eventsReceived + 1,
   }));
 }
 
@@ -126,6 +134,7 @@ export function handleChunk(data) {
   pipeline.update(state => ({
     ...state,
     responseText: state.responseText + (data.text || ''),
+    eventsReceived: state.eventsReceived + 1,
   }));
 }
 
@@ -135,16 +144,37 @@ export function handleDone(data) {
     ...state,
     traceId: data.trace_id || null,
     referencedIds: data.referenced_ids || [],
+    // If responseText is empty, use the done event's full text
+    responseText: state.responseText || data.text || '',
+    eventsReceived: state.eventsReceived + 1,
   }));
 }
 
 /** Handle pipeline_summary event */
 export function handlePipelineSummary(data) {
-  pipeline.update(state => ({
-    ...state,
-    status: 'complete',
-    summary: data,
-  }));
+  pipeline.update(state => {
+    // Also update node data from summary if not already set
+    const nodes = { ...state.nodes };
+    if (data.nodes) {
+      for (const n of data.nodes) {
+        if (nodes[n.node]) {
+          nodes[n.node] = {
+            ...nodes[n.node],
+            status: n.status === 'ok' ? 'complete' : (n.status || 'complete'),
+            duration_ms: nodes[n.node].duration_ms || n.duration_ms || null,
+            llm: nodes[n.node].llm || (n.model ? { model: n.model } : null),
+          };
+        }
+      }
+    }
+    return {
+      ...state,
+      status: 'complete',
+      summary: data,
+      nodes,
+      eventsReceived: state.eventsReceived + 1,
+    };
+  });
 }
 
 /** Handle error event */
@@ -152,7 +182,8 @@ export function handleError(data) {
   pipeline.update(state => ({
     ...state,
     status: 'error',
-    error: data.error || 'Unknown error',
+    error: data.error || data.message || 'Unknown error',
+    eventsReceived: state.eventsReceived + 1,
   }));
 }
 

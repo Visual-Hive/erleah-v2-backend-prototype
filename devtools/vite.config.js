@@ -13,14 +13,12 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        // Critical: configure proxy to not buffer SSE responses
+        // Critical for SSE: configure the proxy to not buffer
         configure: (proxy) => {
-          proxy.on('proxyRes', (proxyRes) => {
-            // Disable any response buffering for SSE streams
-            if (proxyRes.headers['content-type']?.includes('text/event-stream')) {
-              proxyRes.headers['cache-control'] = 'no-cache';
-              proxyRes.headers['x-accel-buffering'] = 'no';
-            }
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            // Tell any intermediary (nginx, etc.) not to buffer
+            res.setHeader('X-Accel-Buffering', 'no');
+            res.setHeader('Cache-Control', 'no-cache, no-store');
           });
         },
       },

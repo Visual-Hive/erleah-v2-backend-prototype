@@ -1,9 +1,10 @@
 /**
  * REST + SSE client for the Erleah backend.
  *
- * Sends chat messages via POST and consumes the SSE response.
- * Uses fetch with full response text (non-streaming) as a reliable fallback,
- * then parses SSE events from the complete response.
+ * Sends chat messages via POST and consumes the SSE response
+ * using fetch + ReadableStream for real-time streaming.
+ *
+ * Includes a mock mode for testing UI without a backend.
  */
 import {
   startPipeline,
@@ -16,27 +17,28 @@ import {
   handleError,
 } from './stores/pipeline.js';
 
-// Connect directly to backend - Vite proxy buffers SSE completely
-const API_BASE = 'http://localhost:8000/api';
+// Same-origin via Vite proxy (see vite.config.js)
+// Falls back to direct connection if proxy not available
+const API_BASE = '/api';
+
+// Toggle this to test UI without backend
+const USE_MOCK = false;
 
 let currentAbort = null;
 
 /**
  * Send a chat message and consume the SSE response.
- *
- * @param {string} message - The user's message
- * @param {object} userContext - User context
- * @returns {{ abort: () => void }}
  */
 export function sendMessage(message, userContext = {}) {
-  // Reset pipeline and mark as running
   startPipeline();
 
-  // Cancel any previous request
-  if (currentAbort) {
-    currentAbort.abort();
-  }
+  if (currentAbort) currentAbort.abort();
   currentAbort = new AbortController();
+
+  if (USE_MOCK) {
+    runMockPipeline(message);
+    return { abort: () => {} };
+  }
 
   const body = JSON.stringify({
     message,
@@ -48,29 +50,21 @@ export function sendMessage(message, userContext = {}) {
     },
   });
 
-  // Try streaming first, fall back to full-text
-  streamSSE(body, currentAbort.signal);
+  fetchSSE(body, currentAbort.signal);
 
   return {
-    abort: () => {
-      if (currentAbort) currentAbort.abort();
-    },
+    abort: () => { if (currentAbort) currentAbort.abort(); },
   };
 }
 
 /**
- * Stream SSE events using fetch + ReadableStream.
- * Falls back to full-text if streaming fails.
+ * Fetch SSE stream using ReadableStream for real-time chunk processing.
  */
-async function streamSSE(body, signal) {
+async function fetchSSE(body, signal) {
   try {
     const response = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-        'Accept-Encoding': 'identity',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body,
       signal,
     });
@@ -80,49 +74,66 @@ async function streamSSE(body, signal) {
       return;
     }
 
-    // Read entire response as text, then parse all SSE events
-    // (streaming will be added once proxy buffering is resolved)
-    const text = await response.text();
-    console.log('[api] Response received, length:', text.length);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    const events = text.split('\n\n');
-    for (const evt of events) {
-      if (evt.trim()) {
-        parseAndDispatchSSE(evt);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      // Normalize CRLF to LF — sse-starlette uses \r\n line endings
+      buffer += chunk.replace(/\r\n/g, '\n');
+
+      // Process complete SSE events (double newline separated)
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        if (part.trim()) {
+          parseAndDispatchSSE(part);
+        }
       }
     }
+
+    // Flush remaining buffer
+    if (buffer.trim()) {
+      parseAndDispatchSSE(buffer);
+    }
+
   } catch (err) {
     if (err.name === 'AbortError') return;
-    console.error('[api] Stream error:', err);
-    handleError({ error: err.message || 'Stream failed' });
+    console.error('[api] Fetch error:', err);
+    handleError({ error: `Connection failed: ${err.message}` });
   }
 }
 
 /**
- * Parse a single SSE event block and dispatch to the appropriate handler.
+ * Parse a single SSE event block and dispatch to the appropriate store handler.
  */
 function parseAndDispatchSSE(raw) {
   let eventType = 'message';
-  let dataStr = '';
+  let dataLines = [];
 
   for (const line of raw.split('\n')) {
     if (line.startsWith('event:')) {
       eventType = line.slice(6).trim();
     } else if (line.startsWith('data:')) {
-      dataStr += line.slice(5).trim();
+      dataLines.push(line.slice(5));
     }
   }
 
+  const dataStr = dataLines.join('').trim();
   if (!dataStr) return;
 
   let data;
   try {
     data = JSON.parse(dataStr);
   } catch {
+    console.warn('[SSE] Failed to parse JSON:', dataStr.slice(0, 100));
     return;
   }
-
-  console.log('[SSE]', eventType, data);
 
   switch (eventType) {
     case 'node_start':
@@ -135,6 +146,7 @@ function parseAndDispatchSSE(raw) {
       handleAcknowledgment(data);
       break;
     case 'progress':
+      // Progress events carry node info — treat as node_start
       if (data.node) {
         handleNodeStart({ node: data.node, ts: Date.now() / 1000 });
       }
@@ -154,4 +166,60 @@ function parseAndDispatchSSE(raw) {
     default:
       break;
   }
+}
+
+// ─── Mock pipeline for UI testing ───────────────────────────────────
+
+async function runMockPipeline(message) {
+  const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+  const nodes = [
+    { node: 'fetch_data', ms: 500 },
+    { node: 'generate_acknowledgment', ms: 300 },
+    { node: 'plan_queries', ms: 2000, model: 'claude-sonnet-4-20250514', input: 378, output: 103 },
+    { node: 'execute_queries', ms: 400 },
+    { node: 'check_results', ms: 10 },
+    { node: 'generate_response', ms: 2500, model: 'claude-sonnet-4-20250514', input: 198, output: 87 },
+    { node: 'evaluate', ms: 1500, model: 'claude-haiku-4-5-20251001', input: 273, output: 235 },
+  ];
+
+  for (const n of nodes) {
+    handleNodeStart({ node: n.node, ts: Date.now() / 1000 });
+    await delay(n.ms);
+
+    if (n.node === 'generate_acknowledgment') {
+      handleAcknowledgment({ text: "I'll help you with that!" });
+    }
+
+    handleNodeEnd({
+      node: n.node,
+      duration_ms: n.ms,
+      output: { status: 'ok' },
+      llm: n.model ? { model: n.model, input_tokens: n.input, output_tokens: n.output, cached_tokens: 0 } : null,
+    });
+  }
+
+  const words = `Hello! I'm Erleah, your AI conference assistant. I'm here to help you find sessions, speakers, and exhibitors. What can I help you with today?`.split(' ');
+  for (const word of words) {
+    handleChunk({ text: word + ' ' });
+    await delay(30);
+  }
+
+  handleDone({
+    text: words.join(' '),
+    referenced_ids: [],
+    trace_id: 'mock-trace-' + Date.now(),
+  });
+
+  handlePipelineSummary({
+    trace_id: 'mock-trace-' + Date.now(),
+    total_ms: nodes.reduce((s, n) => s + n.ms, 0),
+    nodes: nodes.map(n => ({
+      node: n.node,
+      duration_ms: n.ms,
+      status: 'ok',
+      model: n.model || undefined,
+    })),
+    total_tokens: { input: 849, output: 425, cached: 0 },
+  });
 }

@@ -41,15 +41,20 @@
   <!-- Header -->
   <div class="flex items-center justify-between mb-2">
     <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider">Pipeline Graph</h2>
-    {#if $pipeline.status === 'running'}
-      <span class="text-xs text-blue-400 animate-pulse">● Running</span>
-    {:else if $pipeline.status === 'complete'}
-      <span class="text-xs text-green-400">● Complete</span>
-    {:else if $pipeline.status === 'error'}
-      <span class="text-xs text-red-400">● Error</span>
-    {:else}
-      <span class="text-xs text-gray-600">● Idle</span>
-    {/if}
+    <div class="flex items-center gap-3">
+      {#if $pipeline.status === 'running'}
+        <span class="text-xs text-blue-400 animate-pulse">● Running</span>
+      {:else if $pipeline.status === 'complete'}
+        <span class="text-xs text-green-400">● Complete</span>
+      {:else if $pipeline.status === 'error'}
+        <span class="text-xs text-red-400">● Error</span>
+      {:else}
+        <span class="text-xs text-gray-600">● Idle</span>
+      {/if}
+      {#if $pipeline.eventsReceived > 0}
+        <span class="text-[10px] text-gray-600 font-mono">{$pipeline.eventsReceived} events</span>
+      {/if}
+    </div>
   </div>
 
   <!-- Summary bar -->
