@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # Evaluation
     evaluation_enabled: bool = True
 
+    # DevTools debug mode — emit node_start/node_end/pipeline_summary SSE events
+    debug_mode: bool = True
+
     # OpenTelemetry
     otel_exporter_endpoint: str = ""
     otel_service_name: str = "erleah-backend"

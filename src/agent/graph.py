@@ -43,6 +43,7 @@ from src.monitoring.metrics import (
     TIME_TO_FIRST_CHUNK,
     USER_ABANDONED,
 )
+from src.config import settings
 from src.services.cache import get_cache_service
 from src.services.errors import WorkflowTimeout, get_user_error
 
@@ -238,6 +239,59 @@ def _track_llm_usage(event: dict) -> None:
 
     LLM_CALLS.labels(model=model, node=node).inc()
 
+    # Return extracted data for debug events
+    return {
+        "node": node,
+        "model": model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cached_tokens": cached_tokens,
+    }
+
+
+# --- Debug helpers ---
+
+# Pipeline nodes we track for debug (excludes internal LangGraph routing)
+_PIPELINE_NODES = {
+    "fetch_data", "update_profile", "generate_acknowledgment",
+    "plan_queries", "execute_queries", "check_results",
+    "relax_and_retry", "generate_response", "evaluate",
+}
+
+# Nodes that call an LLM
+_LLM_NODES = {
+    "plan_queries", "generate_response", "evaluate",
+    "update_profile", "generate_acknowledgment",
+}
+
+
+def _sanitize_for_debug(data: dict | None, max_str_len: int = 500) -> dict:
+    """Create a JSON-safe, size-limited snapshot of state data for debug events."""
+    if not data or not isinstance(data, dict):
+        return {}
+    result = {}
+    # Skip large/internal fields
+    skip_keys = {"messages", "progress_updates"}
+    for key, value in data.items():
+        if key in skip_keys:
+            continue
+        try:
+            # Truncate long strings
+            if isinstance(value, str) and len(value) > max_str_len:
+                result[key] = value[:max_str_len] + "..."
+            elif isinstance(value, list) and len(value) > 20:
+                result[key] = value[:20]
+                result[f"{key}_count"] = len(value)
+            elif isinstance(value, dict) and len(str(value)) > 2000:
+                result[key] = {k: "..." for k in list(value.keys())[:10]}
+            else:
+                # Quick JSON-serializable check
+                json.dumps(value)
+                result[key] = value
+        except (TypeError, ValueError):
+            result[key] = str(value)[:max_str_len]
+    return result
+
 
 async def stream_agent_response(
     message: str, user_context: dict
@@ -306,6 +360,15 @@ async def stream_agent_response(
     chunk_count = 0
     referenced_ids: list[str] = []
 
+    # Debug tracking (only used when debug_mode is on)
+    debug = settings.debug_mode
+    node_start_times: dict[str, float] = {}  # node → perf_counter timestamp
+    node_llm_usage: dict[str, dict] = {}     # node → {model, input_tokens, ...}
+    node_last_output: dict[str, dict] = {}   # node → latest raw output from on_chain_end
+    node_ended: set[str] = set()             # nodes for which we've emitted node_end
+    completed_nodes: list[dict] = []         # ordered list for pipeline_summary
+    current_debug_node: str | None = None    # the currently active node
+
     # Publish progress to Redis for multi-instance visibility
     cache = get_cache_service()
 
@@ -315,14 +378,20 @@ async def stream_agent_response(
             metadata = event.get("metadata", {})
             langgraph_node = metadata.get("langgraph_node", "")
 
-            # Track LLM token usage
-            _track_llm_usage(event)  # type: ignore[arg-type]
+            # Track LLM token usage (+ capture for debug)
+            llm_info = _track_llm_usage(event)  # type: ignore[arg-type]
+            if debug and llm_info and llm_info["node"] in _PIPELINE_NODES:
+                node_llm_usage[llm_info["node"]] = llm_info
 
             # Send progress events when a new node starts
             if langgraph_node and langgraph_node not in seen_nodes:
                 seen_nodes.add(langgraph_node)
                 progress_msg = PROGRESS_MESSAGES.get(langgraph_node)
                 elapsed = time.perf_counter() - request_start
+
+                # Record start time for debug duration tracking
+                if debug and langgraph_node in _PIPELINE_NODES:
+                    node_start_times[langgraph_node] = time.perf_counter()
 
                 logger.info(
                     "  [sse] progress event",
@@ -344,6 +413,51 @@ async def stream_agent_response(
                     "event": "progress",
                     "data": {"node": langgraph_node, "message": progress_msg},
                 }
+
+                # Debug: emit node_end for the PREVIOUS node (it just finished)
+                if debug and current_debug_node and current_debug_node not in node_ended:
+                    prev = current_debug_node
+                    node_ended.add(prev)
+                    now = time.perf_counter()
+                    duration_ms = round((now - node_start_times.get(prev, now)) * 1000)
+                    output = node_last_output.get(prev, {})
+
+                    node_end_data: dict = {
+                        "node": prev,
+                        "ts": time.time(),
+                        "duration_ms": duration_ms,
+                        "output": output,
+                    }
+                    if prev in node_llm_usage:
+                        llm = node_llm_usage[prev]
+                        node_end_data["llm"] = {
+                            "model": llm["model"],
+                            "input_tokens": llm["input_tokens"],
+                            "output_tokens": llm["output_tokens"],
+                            "cached_tokens": llm["cached_tokens"],
+                        }
+                    summary_entry: dict = {"node": prev, "duration_ms": duration_ms, "status": "ok"}
+                    if prev in node_llm_usage:
+                        summary_entry["model"] = node_llm_usage[prev]["model"]
+                    completed_nodes.append(summary_entry)
+
+                    logger.info("  [debug] node_end", node=prev, duration_ms=duration_ms)
+                    yield {"event": "node_end", "data": node_end_data}
+
+                # Track current debug node
+                if debug and langgraph_node in _PIPELINE_NODES:
+                    current_debug_node = langgraph_node
+
+                # Emit debug node_start event
+                if debug and langgraph_node in _PIPELINE_NODES:
+                    yield {
+                        "event": "node_start",
+                        "data": {
+                            "node": langgraph_node,
+                            "ts": time.time(),
+                        },
+                    }
+
                 # Publish to Redis pub/sub
                 await cache.publish(
                     f"progress:{trace_id}",
@@ -436,6 +550,18 @@ async def stream_agent_response(
                     },
                 }
 
+            # --- Debug: capture latest output from on_chain_end ---
+            if (
+                debug
+                and kind == "on_chain_end"
+                and langgraph_node in _PIPELINE_NODES
+            ):
+                output = event.get("data", {}).get("output", {})
+                if isinstance(output, dict) and output:
+                    sanitized = _sanitize_for_debug(output)
+                    if sanitized:
+                        node_last_output[langgraph_node] = sanitized
+
     except asyncio.TimeoutError:
         elapsed = time.perf_counter() - request_start
         logger.error(
@@ -482,6 +608,54 @@ async def stream_agent_response(
         referenced_ids=len(referenced_ids),
         had_error=not done_sent,
     )
+
+    # Debug: emit node_end for the LAST node (no next node to trigger transition)
+    if debug and current_debug_node and current_debug_node not in node_ended:
+        prev = current_debug_node
+        node_ended.add(prev)
+        now = time.perf_counter()
+        duration_ms = round((now - node_start_times.get(prev, now)) * 1000)
+        output = node_last_output.get(prev, {})
+
+        node_end_data = {
+            "node": prev,
+            "ts": time.time(),
+            "duration_ms": duration_ms,
+            "output": output,
+        }
+        if prev in node_llm_usage:
+            llm = node_llm_usage[prev]
+            node_end_data["llm"] = {
+                "model": llm["model"],
+                "input_tokens": llm["input_tokens"],
+                "output_tokens": llm["output_tokens"],
+                "cached_tokens": llm["cached_tokens"],
+            }
+        summary_entry = {"node": prev, "duration_ms": duration_ms, "status": "ok"}
+        if prev in node_llm_usage:
+            summary_entry["model"] = node_llm_usage[prev]["model"]
+        completed_nodes.append(summary_entry)
+
+        logger.info("  [debug] node_end (final)", node=prev, duration_ms=duration_ms)
+        yield {"event": "node_end", "data": node_end_data}
+
+    # Debug: emit pipeline_summary
+    if debug and completed_nodes:
+        total_tokens = {"input": 0, "output": 0, "cached": 0}
+        for llm in node_llm_usage.values():
+            total_tokens["input"] += llm.get("input_tokens", 0)
+            total_tokens["output"] += llm.get("output_tokens", 0)
+            total_tokens["cached"] += llm.get("cached_tokens", 0)
+
+        yield {
+            "event": "pipeline_summary",
+            "data": {
+                "trace_id": trace_id,
+                "total_ms": round(total_elapsed * 1000),
+                "nodes": completed_nodes,
+                "total_tokens": total_tokens,
+            },
+        }
 
 
 async def _stream_with_timeout(initial_state: AssistantState):
