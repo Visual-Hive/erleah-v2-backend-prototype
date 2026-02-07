@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     xai_model: str = "grok-3-mini-fast-latest"
 
+    # Groq (fast inference via LPU)
+    groq_api_key: str = ""
+
     # App Config
     environment: str = "development"
     api_host: str = "0.0.0.0"

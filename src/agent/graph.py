@@ -32,6 +32,7 @@ from src.agent.nodes.generate_response import generate_response
 from src.agent.nodes.plan_queries import plan_queries
 from src.agent.nodes.relax_and_retry import relax_and_retry
 from src.agent.nodes.update_profile import update_profile
+from src.agent.llm_registry import get_llm_registry
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.middleware.logging import trace_id_var
@@ -466,15 +467,26 @@ async def stream_agent_response(
                 if debug and langgraph_node in _PIPELINE_NODES:
                     current_debug_node = langgraph_node
 
-                # Emit debug node_start event
+                # Emit debug node_start event (with assigned model for LLM nodes)
                 if debug and langgraph_node in _PIPELINE_NODES:
-                    yield {
-                        "event": "node_start",
-                        "data": {
-                            "node": langgraph_node,
-                            "ts": time.time(),
-                        },
+                    node_start_data: dict = {
+                        "node": langgraph_node,
+                        "ts": time.time(),
                     }
+                    # Include assigned model info for LLM nodes
+                    if langgraph_node in _LLM_NODES:
+                        try:
+                            llm_registry = get_llm_registry()
+                            model_cfg = llm_registry.get_node_config(langgraph_node)
+                            node_start_data["model"] = {
+                                "provider": model_cfg.provider,
+                                "model_id": model_cfg.model_id,
+                                "display_name": model_cfg.display_name,
+                                "is_default": model_cfg.is_default,
+                            }
+                        except (KeyError, Exception):
+                            pass
+                    yield {"event": "node_start", "data": node_start_data}
 
                 # Publish to Redis pub/sub
                 await cache.publish(

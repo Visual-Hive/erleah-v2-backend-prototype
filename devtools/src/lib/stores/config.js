@@ -24,3 +24,22 @@ export const promptKeys = derived(prompts, $prompts => Object.keys($prompts));
 export const modifiedCount = derived(prompts, $prompts => {
   return Object.values($prompts).filter(p => !p.is_default).length;
 });
+
+// ─── Model config stores ────────────────────────────────────────────
+
+/** Available models list */
+export const availableModels = writable([]);
+
+/** Current model assignments: { [node]: { provider, model_id, display_name, speed, is_default } } */
+export const modelAssignments = writable({});
+
+/** Loading state for model operations */
+export const modelsLoading = writable(false);
+
+/** Error state for model operations */
+export const modelsError = writable(null);
+
+/** Derived: number of non-default model assignments */
+export const nonDefaultModelCount = derived(modelAssignments, $assignments => {
+  return Object.values($assignments).filter(a => !a.is_default).length;
+});

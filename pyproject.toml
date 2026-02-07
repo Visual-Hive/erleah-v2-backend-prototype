@@ -46,6 +46,9 @@ dependencies = [
     # xAI / Grok (acknowledgments)
     "openai>=1.10.0",
 
+    # Groq (fast inference)
+    "langchain-groq>=0.1.0",
+
     # System monitoring
     "psutil>=5.9.0",
 

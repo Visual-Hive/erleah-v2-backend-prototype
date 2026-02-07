@@ -6,7 +6,7 @@ import re
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.agent.llm import sonnet
+from src.agent.llm_registry import get_llm_registry
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 
@@ -83,10 +83,11 @@ async def generate_response(state: AssistantState) -> dict:
     try:
         # Use ainvoke (streaming is handled by astream_events at the graph level)
         logger.info(
-            "  [generate_response] Calling Sonnet to generate user-facing response..."
+            "  [generate_response] Calling LLM to generate user-facing response..."
         )
         registry = get_prompt_registry()
-        result = await sonnet.ainvoke(
+        llm = get_llm_registry().get_model("generate_response")
+        result = await llm.ainvoke(
             [
                 SystemMessage(
                     content=registry.get("generate_response"),

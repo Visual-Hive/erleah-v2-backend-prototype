@@ -5,7 +5,7 @@ import json
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.agent.llm import sonnet
+from src.agent.llm_registry import get_llm_registry
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.services.cache import get_cache_service, make_key
@@ -39,7 +39,8 @@ async def update_profile(state: AssistantState) -> dict:
             f"Merge any new profile-relevant information from the message into the profile."
         )
         registry = get_prompt_registry()
-        result = await sonnet.ainvoke(
+        llm = get_llm_registry().get_model("update_profile")
+        result = await llm.ainvoke(
             [
                 SystemMessage(
                     content=registry.get("profile_update"),

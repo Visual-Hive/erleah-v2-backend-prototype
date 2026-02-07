@@ -5,7 +5,7 @@ import json
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.agent.llm import haiku
+from src.agent.llm_registry import get_llm_registry
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.config import settings
@@ -47,9 +47,10 @@ async def evaluate(state: AssistantState) -> dict:
     confidence_score = None
 
     try:
-        logger.info("  [evaluate] Calling Haiku to score response quality...")
+        logger.info("  [evaluate] Calling LLM to score response quality...")
         registry = get_prompt_registry()
-        result = await haiku.ainvoke(
+        llm = get_llm_registry().get_model("evaluate")
+        result = await llm.ainvoke(
             [
                 SystemMessage(
                     content=registry.get("evaluate"),

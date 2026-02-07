@@ -124,8 +124,8 @@ event: pipeline_summary  data: {"trace_id": "...", "total_ms": 17450,
 ```
 src/
 ├── agent/
-│   ├── llm.py              # MODIFIED: Use LLM registry
-│   ├── llm_registry.py     # NEW (Phase 3): Runtime-configurable model registry
+│   ├── llm.py              # Original hardcoded LLM instances (kept for compat)
+│   ├── llm_registry.py     # ✅ NEW (Phase 3): Runtime-configurable model registry
 │   ├── prompt_registry.py  # ✅ NEW (Phase 2): Runtime-mutable prompt store
 │   ├── graph.py             # ✅ MODIFIED: Emit debug events + prompt_version
 │   ├── prompts.py           # Default prompt constants (source of truth)
@@ -135,10 +135,10 @@ src/
 │       ├── evaluate.py           # ✅ MODIFIED: Uses prompt registry
 │       └── update_profile.py     # ✅ MODIFIED: Uses prompt registry
 ├── api/
-│   └── debug.py             # ✅ NEW (Phase 2): Debug API (prompt CRUD)
+│   └── debug.py             # ✅ NEW (Phase 2+3): Debug API (prompt CRUD + model endpoints)
 ├── services/
 │   └── grok.py              # ✅ MODIFIED: Uses prompt registry for acknowledgment
-└── config.py                # MODIFIED: Add Groq config
+└── config.py                # ✅ MODIFIED: Add Groq config (Phase 3)
 ```
 
 ### Frontend (Svelte)
@@ -148,24 +148,24 @@ devtools/
 ├── vite.config.js
 ├── index.html
 ├── src/
-│   ├── App.svelte               # ✅ Tabbed right panel (Inspector | Prompts)
+│   ├── App.svelte               # ✅ Tabbed right panel (Inspector | Prompts | Models)
 │   ├── main.js
 │   ├── app.css                  # Tailwind + dark theme
 │   ├── lib/
-│   │   ├── api.js               # ✅ REST + SSE client + prompt CRUD helpers
+│   │   ├── api.js               # ✅ REST + SSE client + prompt CRUD + history saving
 │   │   └── stores/
-│   │       ├── pipeline.js      # ✅ Current run state + prompt_version tracking
+│   │       ├── pipeline.js      # ✅ Current run state + message tracking
 │   │       ├── config.js        # ✅ NEW (Phase 2): Prompt config store
-│   │       └── history.js       # (Phase 4): Session run history
+│   │       └── history.js       # ✅ NEW (Phase 4): Session run history + comparison
 │   └── components/
 │       ├── WorkflowGraph.svelte # ✅ Pipeline visualization
 │       ├── NodeDetail.svelte    # ✅ Node inspector + prompt version display
 │       ├── ChatInput.svelte     # ✅ Chat input panel
 │       ├── PromptEditor.svelte  # ✅ NEW (Phase 2): View/edit/reset prompts
-│       ├── ModelSelector.svelte # (Phase 3)
-│       ├── RunHistory.svelte    # (Phase 4)
-│       ├── RunComparison.svelte # (Phase 4)
-│       └── Timeline.svelte      # (Phase 4)
+│       ├── ModelSelector.svelte # ✅ NEW (Phase 3): Model selector per node
+│       ├── RunHistory.svelte    # ✅ NEW (Phase 4): Run list + replay + selection
+│       ├── RunComparison.svelte # ✅ NEW (Phase 4): Side-by-side comparison
+│       └── Timeline.svelte      # ✅ NEW (Phase 4): Gantt chart timing visualization
 ```
 
 ## Phases
@@ -174,8 +174,8 @@ devtools/
 |---|---|---|---|---|
 | **Phase 1** | Pipeline Visibility | ~2 days | None | ✅ Complete |
 | **Phase 2** | Prompt Editor | ~1 day | Phase 1 | ✅ Complete |
-| **Phase 3** | Model Selector + Groq | ~1.5 days | Phase 1 | 🔜 Next |
-| **Phase 4** | Run Comparison | ~1.5 days | Phase 1 | Planned |
+| **Phase 3** | Model Selector + Groq | ~1.5 days | Phase 1 | ✅ Complete |
+| **Phase 4** | Run Comparison | ~1.5 days | Phase 1 | ✅ Complete |
 
 Phases 2, 3, 4 can be done in parallel after Phase 1.
 

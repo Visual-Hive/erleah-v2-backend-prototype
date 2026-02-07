@@ -7,6 +7,7 @@
  * Includes a mock mode for testing UI without a backend.
  */
 import {
+  pipeline,
   startPipeline,
   handleNodeStart,
   handleNodeEnd,
@@ -17,11 +18,17 @@ import {
   handleError,
 } from './stores/pipeline.js';
 
+import { saveRun, toggleRunSelection, selectedRunIds } from './stores/history.js';
+
 import {
   prompts,
   promptsLoading,
   promptsError,
   selectedPromptKey,
+  availableModels,
+  modelAssignments,
+  modelsLoading,
+  modelsError,
 } from './stores/config.js';
 
 // Same-origin via Vite proxy (see vite.config.js)
@@ -33,12 +40,17 @@ const DEBUG_BASE = '/api/debug';
 const USE_MOCK = false;
 
 let currentAbort = null;
+let lastSentMessage = '';
 
 /**
  * Send a chat message and consume the SSE response.
  */
 export function sendMessage(message, userContext = {}) {
+  lastSentMessage = message;
   startPipeline();
+
+  // Store the message in the pipeline state
+  pipeline.update(state => ({ ...state, message }));
 
   if (currentAbort) currentAbort.abort();
   currentAbort = new AbortController();
@@ -167,6 +179,8 @@ function parseAndDispatchSSE(raw) {
       break;
     case 'pipeline_summary':
       handlePipelineSummary(data);
+      // Auto-save completed run to history
+      saveRunFromPipeline();
       break;
     case 'error':
       handleError(data);
@@ -174,6 +188,36 @@ function parseAndDispatchSSE(raw) {
     default:
       break;
   }
+}
+
+// ─── Run History Integration ────────────────────────────────────────
+
+/**
+ * Snapshot the current pipeline state and save it to run history.
+ * Called automatically when pipeline_summary event is received.
+ */
+function saveRunFromPipeline() {
+  // Use get() pattern: subscribe, capture value, unsubscribe immediately
+  let pipelineState;
+  const unsubscribe = pipeline.subscribe(state => { pipelineState = state; });
+  unsubscribe();
+
+  if (pipelineState) {
+    const run = saveRun(pipelineState, pipelineState.message || lastSentMessage);
+    console.log(`[history] Saved ${run.id}: "${run.message}" (${run.totalMs}ms)`);
+  }
+}
+
+/**
+ * Replay a previous message with the current model/prompt config.
+ * This is the core A/B testing loop:
+ *   1. Run with config A → see results
+ *   2. Change config → replay → compare
+ *
+ * @param {string} message - The message to replay
+ */
+export function replayMessage(message) {
+  return sendMessage(message);
 }
 
 // ─── Mock pipeline for UI testing ───────────────────────────────────
@@ -306,5 +350,92 @@ export async function resetPrompt(key) {
     return null;
   } finally {
     promptsLoading.set(false);
+  }
+}
+
+// ─── Debug API: Model CRUD ──────────────────────────────────────────
+
+/**
+ * Fetch available models and current assignments from the debug API.
+ */
+export async function fetchModels() {
+  modelsLoading.set(true);
+  modelsError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/models`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const data = await res.json();
+    availableModels.set(data.available || []);
+    modelAssignments.set(data.assignments || {});
+  } catch (err) {
+    console.error('[api] Failed to fetch models:', err);
+    modelsError.set(err.message);
+  } finally {
+    modelsLoading.set(false);
+  }
+}
+
+/**
+ * Change the model for a specific pipeline node.
+ * @param {string} node - Node name (e.g. "plan_queries")
+ * @param {string} provider - Provider (e.g. "anthropic", "groq")
+ * @param {string} modelId - Model ID (e.g. "claude-sonnet-4-20250514")
+ * @returns {object|null} Updated config, or null on error
+ */
+export async function updateModel(node, provider, modelId) {
+  modelsLoading.set(true);
+  modelsError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/models/${node}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, model_id: modelId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}: ${res.statusText}`);
+    }
+    const updated = await res.json();
+    // Update the assignment for this node in the store
+    modelAssignments.update(current => ({
+      ...current,
+      [node]: {
+        provider: updated.provider,
+        model_id: updated.model_id,
+        display_name: updated.display_name,
+        speed: updated.speed,
+        is_default: updated.is_default,
+      },
+    }));
+    return updated;
+  } catch (err) {
+    console.error('[api] Failed to update model:', err);
+    modelsError.set(err.message);
+    return null;
+  } finally {
+    modelsLoading.set(false);
+  }
+}
+
+/**
+ * Reset all model assignments to defaults.
+ */
+export async function resetModels() {
+  modelsLoading.set(true);
+  modelsError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/models/reset`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const data = await res.json();
+    modelAssignments.set(data.assignments || {});
+    return data;
+  } catch (err) {
+    console.error('[api] Failed to reset models:', err);
+    modelsError.set(err.message);
+    return null;
+  } finally {
+    modelsLoading.set(false);
   }
 }

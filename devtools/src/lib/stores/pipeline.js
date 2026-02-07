@@ -53,6 +53,7 @@ function createInitialState() {
     traceId: null,
     status: 'idle',         // idle | running | complete | error
     startedAt: null,
+    message: '',            // The user message that triggered this run
     nodes: createNodeState(),
     responseText: '',
     acknowledgmentText: '',
@@ -86,7 +87,7 @@ export function startPipeline() {
 
 /** Handle node_start event */
 export function handleNodeStart(data) {
-  const { node, ts } = data;
+  const { node, ts, model } = data;
   if (!node) return;
   pipeline.update(state => {
     const nodes = { ...state.nodes };
@@ -95,6 +96,7 @@ export function handleNodeStart(data) {
         ...nodes[node],
         status: 'running',
         startedAt: ts ? ts * 1000 : Date.now(),
+        model: model || nodes[node].model || null,
       };
     }
     return { ...state, nodes, eventsReceived: state.eventsReceived + 1 };

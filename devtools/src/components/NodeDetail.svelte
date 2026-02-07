@@ -59,6 +59,20 @@
       </div>
     {/if}
 
+    <!-- Assigned Model (from node_start) -->
+    {#if node.model}
+      <div class="mb-4 p-3 rounded bg-indigo-950/20 border border-indigo-900/30">
+        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Assigned Model</div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono text-indigo-300">{node.model.display_name}</span>
+          {#if !node.model.is_default}
+            <span class="text-[8px] px-1 py-0.5 rounded bg-yellow-900/40 text-yellow-400 uppercase tracking-wider font-bold">Custom</span>
+          {/if}
+        </div>
+        <div class="text-[10px] text-gray-600 font-mono mt-1">{node.model.provider} / {node.model.model_id}</div>
+      </div>
+    {/if}
+
     <!-- LLM Info -->
     {#if node.llm}
       <div class="mb-4 p-3 rounded bg-purple-950/20 border border-purple-900/30">

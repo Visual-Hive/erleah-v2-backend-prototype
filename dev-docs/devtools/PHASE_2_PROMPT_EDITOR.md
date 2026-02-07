@@ -151,3 +151,42 @@ Layout: Lives in the right panel of the DevTools UI, toggled via a tab.
 - [x] Reset a prompt to its default
 - [x] See prompt version number in node detail panel
 - [x] Modified prompts show "Modified" indicator
+
+## Implementation Notes
+
+### How It Works
+1. **PromptRegistry** (`src/agent/prompt_registry.py`) is a singleton initialized lazily via `get_prompt_registry()`. It loads defaults from `prompts.py` constants and `grok.py`'s `ACKNOWLEDGMENT_SYSTEM`.
+2. All 5 LLM nodes now call `registry.get("key")` at runtime instead of importing constants directly. This means editing a prompt via the API takes effect on the **very next pipeline run** — no restart needed.
+3. The `node_end` debug events in `graph.py` include `prompt_version` using a `_NODE_PROMPT_KEYS` mapping, so the DevTools UI can show which prompt version was used.
+4. Prompts are **in-memory only** — they reset to defaults on server restart. This is intentional for a dev tool.
+
+### Running the DevTools
+```bash
+# Terminal 1: Start backend
+uv run uvicorn src.main:app --reload --port 8000
+
+# Terminal 2: Start devtools frontend
+cd devtools && npm run dev
+# → http://localhost:5174
+```
+
+### API Quick Test
+```bash
+# List all prompts
+curl http://localhost:8000/api/debug/prompts | python -m json.tool
+
+# Update a prompt
+curl -X PUT http://localhost:8000/api/debug/prompts/generate_response \
+  -H "Content-Type: application/json" \
+  -d '{"text": "You are a helpful assistant..."}'
+
+# Reset to default
+curl -X POST http://localhost:8000/api/debug/prompts/generate_response/reset
+```
+
+### UI Features
+- **Tabbed right panel**: Inspector (node detail) | Prompts (editor)
+- **Dropdown selector** with friendly labels (🧠 Plan Queries, 📝 Generate Response, etc.)
+- **Modified count badge** on the Prompts tab when prompts differ from defaults
+- **⌘S keyboard shortcut** to save
+- **Graceful error handling** when backend isn't running
