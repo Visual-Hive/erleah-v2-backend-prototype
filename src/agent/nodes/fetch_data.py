@@ -7,6 +7,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm import sonnet
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.prompts import PROFILE_DETECT_SYSTEM
 from src.agent.state import AssistantState
 from src.services.cache import get_cache_service, make_key
@@ -15,6 +16,7 @@ from src.services.directus import get_directus_client
 logger = structlog.get_logger()
 
 
+@graceful_node("fetch_data", critical=False)
 async def fetch_data_parallel(state: AssistantState) -> dict:
     """Fetch user profile and conversation history in parallel.
 

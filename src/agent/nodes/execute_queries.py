@@ -5,6 +5,7 @@ from dataclasses import asdict
 
 import structlog
 
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.state import AssistantState
 from src.search.faceted import hybrid_search, extract_display_name
 from src.services.cache import get_cache_service, make_key
@@ -12,6 +13,7 @@ from src.services.cache import get_cache_service, make_key
 logger = structlog.get_logger()
 
 
+@graceful_node("execute_queries", critical=False)
 async def execute_queries(state: AssistantState) -> dict:
     """Execute all planned queries in parallel using hybrid_search.
 

@@ -6,6 +6,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm_registry import get_llm_registry
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.services.cache import get_cache_service, make_key
@@ -14,6 +15,7 @@ from src.services.directus import get_directus_client
 logger = structlog.get_logger()
 
 
+@graceful_node("update_profile", critical=False)
 async def update_profile(state: AssistantState) -> dict:
     """Update the user profile if profile_needs_update is True.
 

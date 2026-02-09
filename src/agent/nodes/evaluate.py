@@ -6,6 +6,7 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm_registry import get_llm_registry
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 from src.config import settings
@@ -14,6 +15,7 @@ from src.services.directus import get_directus_client
 logger = structlog.get_logger()
 
 
+@graceful_node("evaluate", critical=False)
 async def evaluate(state: AssistantState) -> dict:
     """Score the generated response using Haiku.
 

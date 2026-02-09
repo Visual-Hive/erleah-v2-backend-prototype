@@ -10,6 +10,25 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
+class ErrorContext(TypedDict, total=False):
+    """Context about failures that the response generator can use.
+
+    When a node fails, it populates this context instead of crashing.
+    The generate_response node reads it to craft a natural, helpful
+    message explaining what happened and what the user can do.
+    """
+
+    failed_node: str  # Which node failed
+    error_type: str  # Category: "timeout", "connection", "rate_limit", "data", "unknown"
+    error_detail: str  # Technical detail (for logs, not user)
+    user_hint: str  # Pre-written hint for the agent
+    degraded_results: bool  # True if we have partial results
+    available_data: list[str]  # What data DID load successfully
+    unavailable_data: list[str]  # What data failed to load
+    can_retry: bool  # Whether retrying might help
+    retry_suggestion: str  # e.g. "Try rephrasing your question"
+
+
 class AssistantState(TypedDict):
     """State schema for the conference assistant pipeline."""
 
@@ -62,3 +81,8 @@ class AssistantState(TypedDict):
     error: str | None
     error_node: str | None  # Which node failed
     current_node: str
+
+    # --- graceful failure (Phase 2, TASK-01) ---
+    error_context: ErrorContext | None  # None = no errors occurred
+    partial_failure: bool  # True = some nodes failed, results may be degraded
+    force_response: bool  # True = skip remaining nodes, go straight to generate_response

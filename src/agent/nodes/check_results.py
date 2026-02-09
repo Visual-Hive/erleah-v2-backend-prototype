@@ -2,12 +2,14 @@
 
 import structlog
 
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.state import AssistantState
 from src.config import settings
 
 logger = structlog.get_logger()
 
 
+@graceful_node("check_results", critical=False)
 async def check_results(state: AssistantState) -> dict:
     """Check query results for completeness.
 

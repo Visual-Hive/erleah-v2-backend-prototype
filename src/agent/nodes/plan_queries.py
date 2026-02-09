@@ -6,12 +6,14 @@ import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.llm_registry import get_llm_registry
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
 
 logger = structlog.get_logger()
 
 
+@graceful_node("plan_queries", critical=False)
 async def plan_queries(state: AssistantState) -> dict:
     """Use Sonnet to produce a structured JSON search plan.
 

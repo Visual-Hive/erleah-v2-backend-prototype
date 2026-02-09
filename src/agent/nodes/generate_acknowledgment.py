@@ -2,12 +2,14 @@
 
 import structlog
 
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.state import AssistantState
 from src.services.grok import get_grok_client
 
 logger = structlog.get_logger()
 
 
+@graceful_node("generate_acknowledgment", critical=False)
 async def generate_acknowledgment(state: AssistantState) -> dict:
     """Generate a quick contextual acknowledgment using Grok.
 

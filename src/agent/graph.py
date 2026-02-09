@@ -58,7 +58,14 @@ WORKFLOW_TIMEOUT = 30.0  # seconds
 
 
 def should_update_profile(state: AssistantState) -> str:
-    """Route to update_profile if the message contains profile info."""
+    """Route to update_profile if the message contains profile info.
+
+    Also checks force_response — if a critical failure occurred, skip
+    straight to generate_response regardless of profile needs.
+    """
+    if state.get("force_response"):
+        logger.info("  [conditional] force_response=True, skipping to generate_response")
+        return "generate_response"
     needs_update = state.get("profile_needs_update", False)
     decision = "update_profile" if needs_update else "generate_acknowledgment"
     logger.info(
@@ -69,8 +76,31 @@ def should_update_profile(state: AssistantState) -> str:
     return decision
 
 
+def should_continue_after_acknowledgment(state: AssistantState) -> str:
+    """Check force_response after acknowledgment before proceeding to plan_queries."""
+    if state.get("force_response"):
+        logger.info("  [conditional] force_response=True after acknowledgment, skipping to generate_response")
+        return "generate_response"
+    return "plan_queries"
+
+
+def should_continue_after_execute(state: AssistantState) -> str:
+    """Check force_response after execute_queries before proceeding to check_results."""
+    if state.get("force_response"):
+        logger.info("  [conditional] force_response=True after execute_queries, skipping to generate_response")
+        return "generate_response"
+    return "check_results"
+
+
 def should_retry(state: AssistantState) -> str:
-    """Route to relax_and_retry if there are zero-result tables and retries left."""
+    """Route to relax_and_retry if there are zero-result tables and retries left.
+
+    Also checks force_response — if a critical failure occurred, skip
+    straight to generate_response.
+    """
+    if state.get("force_response"):
+        logger.info("  [conditional] force_response=True, skipping retry to generate_response")
+        return "generate_response"
     needs_retry = state.get("needs_retry", False)
     retry_count = state.get("retry_count", 0)
     zero_tables = state.get("zero_result_tables", [])
@@ -103,27 +133,42 @@ graph_builder.add_node("evaluate", evaluate)
 # Wire edges
 graph_builder.set_entry_point("fetch_data")
 
-# fetch_data → conditional → update_profile OR generate_acknowledgment
+# fetch_data → conditional → update_profile OR generate_acknowledgment OR generate_response (force)
 graph_builder.add_conditional_edges(
     "fetch_data",
     should_update_profile,
     {
         "update_profile": "update_profile",
         "generate_acknowledgment": "generate_acknowledgment",
+        "generate_response": "generate_response",
     },
 )
 
 # update_profile → generate_acknowledgment
 graph_builder.add_edge("update_profile", "generate_acknowledgment")
 
-# generate_acknowledgment → plan_queries
-graph_builder.add_edge("generate_acknowledgment", "plan_queries")
+# generate_acknowledgment → conditional → plan_queries OR generate_response (force)
+graph_builder.add_conditional_edges(
+    "generate_acknowledgment",
+    should_continue_after_acknowledgment,
+    {
+        "plan_queries": "plan_queries",
+        "generate_response": "generate_response",
+    },
+)
 
 # plan_queries → execute_queries
 graph_builder.add_edge("plan_queries", "execute_queries")
 
-# execute_queries → check_results
-graph_builder.add_edge("execute_queries", "check_results")
+# execute_queries → conditional → check_results OR generate_response (force)
+graph_builder.add_conditional_edges(
+    "execute_queries",
+    should_continue_after_execute,
+    {
+        "check_results": "check_results",
+        "generate_response": "generate_response",
+    },
+)
 
 # check_results → conditional → relax_and_retry OR generate_response
 graph_builder.add_conditional_edges(
@@ -363,6 +408,10 @@ async def stream_agent_response(
         "error": None,
         "error_node": None,
         "current_node": "",
+        # Graceful failure fields (Phase 2, TASK-01)
+        "error_context": None,
+        "partial_failure": False,
+        "force_response": False,
     }
 
     seen_nodes: set[str] = set()

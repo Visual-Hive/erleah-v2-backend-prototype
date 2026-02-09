@@ -15,6 +15,7 @@ from dataclasses import asdict
 
 import structlog
 
+from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.state import AssistantState
 from src.search.faceted import hybrid_search
 
@@ -46,6 +47,7 @@ def _relax_query(query: dict, retry_count: int) -> dict:
     return relaxed
 
 
+@graceful_node("relax_and_retry", critical=False)
 async def relax_and_retry(state: AssistantState) -> dict:
     """Re-execute queries for tables that returned zero results.
 
