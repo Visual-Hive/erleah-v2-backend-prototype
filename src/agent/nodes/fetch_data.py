@@ -12,6 +12,7 @@ from src.agent.prompts import PROFILE_DETECT_SYSTEM
 from src.agent.state import AssistantState
 from src.services.cache import get_cache_service, make_key
 from src.services.directus import get_directus_client
+from src.services.simulation import get_simulation_registry
 
 logger = structlog.get_logger()
 
@@ -35,6 +36,12 @@ async def fetch_data_parallel(state: AssistantState) -> dict:
         conversation_id=conversation_id,
         user_message=str(user_message)[:200],
     )
+
+    # Check simulation flags
+    sim = get_simulation_registry()
+    if sim.get("simulate_directus_failure"):
+        logger.warning("  [fetch_data] 🐛 SIMULATION: Directus failure triggered")
+        raise ConnectionError("Simulated Directus failure (debug mode)")
 
     # Parallel fetch: profile + history
     profile: dict = {}

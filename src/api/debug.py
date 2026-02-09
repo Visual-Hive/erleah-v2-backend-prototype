@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from src.agent.llm_registry import get_llm_registry
 from src.agent.prompt_registry import get_prompt_registry
+from src.services.simulation import get_simulation_registry
 
 router = APIRouter(tags=["debug"])
 
@@ -104,3 +105,37 @@ async def reset_models() -> dict:
     registry = get_llm_registry()
     assignments = registry.reset_defaults()
     return {"assignments": assignments}
+
+
+# ── Simulation endpoints ──
+
+
+class SimulationUpdateRequest(BaseModel):
+    """Request body for toggling a simulation flag."""
+
+    enabled: bool
+
+
+@router.get("/simulation")
+async def list_simulation_flags() -> dict:
+    """Return all simulation flags with their current state."""
+    registry = get_simulation_registry()
+    return registry.list_all()
+
+
+@router.put("/simulation/{flag}")
+async def update_simulation_flag(flag: str, body: SimulationUpdateRequest) -> dict:
+    """Toggle a simulation flag on or off. Takes effect on the next pipeline run."""
+    registry = get_simulation_registry()
+    try:
+        updated = registry.set(flag, body.enabled)
+        return {"flag": flag, **updated}
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Unknown simulation flag: {flag}")
+
+
+@router.post("/simulation/reset")
+async def reset_simulation_flags() -> dict:
+    """Reset all simulation flags to disabled."""
+    registry = get_simulation_registry()
+    return registry.reset_all()

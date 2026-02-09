@@ -43,3 +43,19 @@ export const modelsError = writable(null);
 export const nonDefaultModelCount = derived(modelAssignments, $assignments => {
   return Object.values($assignments).filter(a => !a.is_default).length;
 });
+
+// ─── Simulation flag stores ─────────────────────────────────────────
+
+/** Simulation flags: { [flag]: { enabled, description, category, affects } } */
+export const simulationFlags = writable({});
+
+/** Loading state for simulation operations */
+export const simulationLoading = writable(false);
+
+/** Error state for simulation operations */
+export const simulationError = writable(null);
+
+/** Derived: number of active (enabled) simulation flags */
+export const activeSimulationCount = derived(simulationFlags, $flags => {
+  return Object.values($flags).filter(f => f.enabled).length;
+});

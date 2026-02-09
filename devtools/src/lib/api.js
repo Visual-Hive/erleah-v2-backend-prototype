@@ -29,6 +29,9 @@ import {
   modelAssignments,
   modelsLoading,
   modelsError,
+  simulationFlags,
+  simulationLoading,
+  simulationError,
 } from './stores/config.js';
 
 // Same-origin via Vite proxy (see vite.config.js)
@@ -437,5 +440,86 @@ export async function resetModels() {
     return null;
   } finally {
     modelsLoading.set(false);
+  }
+}
+
+// ─── Debug API: Simulation Flags ────────────────────────────────────
+
+/**
+ * Fetch all simulation flags from the debug API.
+ */
+export async function fetchSimulationFlags() {
+  simulationLoading.set(true);
+  simulationError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/simulation`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const data = await res.json();
+    simulationFlags.set(data);
+  } catch (err) {
+    console.error('[api] Failed to fetch simulation flags:', err);
+    simulationError.set(err.message);
+  } finally {
+    simulationLoading.set(false);
+  }
+}
+
+/**
+ * Toggle a simulation flag on or off.
+ * @param {string} flag - Flag name (e.g. "simulate_directus_failure")
+ * @param {boolean} enabled - Whether to enable or disable the flag
+ * @returns {object|null} Updated flag config, or null on error
+ */
+export async function toggleSimulationFlag(flag, enabled) {
+  simulationLoading.set(true);
+  simulationError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/simulation/${flag}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const updated = await res.json();
+    // Update just this flag in the store
+    simulationFlags.update(current => ({
+      ...current,
+      [flag]: {
+        enabled: updated.enabled,
+        description: updated.description,
+        category: updated.category,
+        affects: updated.affects,
+      },
+    }));
+    return updated;
+  } catch (err) {
+    console.error('[api] Failed to toggle simulation flag:', err);
+    simulationError.set(err.message);
+    return null;
+  } finally {
+    simulationLoading.set(false);
+  }
+}
+
+/**
+ * Reset all simulation flags to disabled.
+ */
+export async function resetSimulationFlags() {
+  simulationLoading.set(true);
+  simulationError.set(null);
+  try {
+    const res = await fetch(`${DEBUG_BASE}/simulation/reset`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const data = await res.json();
+    simulationFlags.set(data);
+    return data;
+  } catch (err) {
+    console.error('[api] Failed to reset simulation flags:', err);
+    simulationError.set(err.message);
+    return null;
+  } finally {
+    simulationLoading.set(false);
   }
 }

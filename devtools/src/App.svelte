@@ -6,10 +6,11 @@
   import ModelSelector from './components/ModelSelector.svelte';
   import RunHistory from './components/RunHistory.svelte';
   import RunComparison from './components/RunComparison.svelte';
-  import { modifiedCount, nonDefaultModelCount } from './lib/stores/config.js';
+  import DebugPanel from './components/DebugPanel.svelte';
+  import { modifiedCount, nonDefaultModelCount, activeSimulationCount } from './lib/stores/config.js';
   import { runCount, comparisonOpen } from './lib/stores/history.js';
 
-  let rightTab = $state('inspector'); // 'inspector' | 'prompts' | 'models' | 'history'
+  let rightTab = $state('inspector'); // 'inspector' | 'prompts' | 'models' | 'history' | 'debug'
 </script>
 
 <div class="h-screen flex flex-col bg-gray-950">
@@ -97,6 +98,20 @@
             </span>
           {/if}
         </button>
+        <button
+          class="flex-1 px-3 py-2 text-[11px] font-medium tracking-wide transition-colors cursor-pointer
+                 {rightTab === 'debug'
+                   ? 'text-gray-200 border-b-2 border-red-500 bg-gray-900/30'
+                   : 'text-gray-500 hover:text-gray-400 border-b-2 border-transparent'}"
+          onclick={() => rightTab = 'debug'}
+        >
+          🐛 Debug
+          {#if $activeSimulationCount > 0}
+            <span class="ml-1 text-[9px] px-1 py-0.5 rounded-full bg-red-900/50 text-red-300">
+              {$activeSimulationCount}
+            </span>
+          {/if}
+        </button>
       </div>
 
       <!-- Tab content -->
@@ -107,6 +122,8 @@
           <PromptEditor />
         {:else if rightTab === 'models'}
           <ModelSelector />
+        {:else if rightTab === 'debug'}
+          <DebugPanel />
         {:else}
           <RunHistory />
         {/if}

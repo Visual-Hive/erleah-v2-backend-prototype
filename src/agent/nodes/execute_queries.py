@@ -9,6 +9,7 @@ from src.agent.nodes.error_wrapper import graceful_node
 from src.agent.state import AssistantState
 from src.search.faceted import hybrid_search, extract_display_name
 from src.services.cache import get_cache_service, make_key
+from src.services.simulation import get_simulation_registry
 
 logger = structlog.get_logger()
 
@@ -25,6 +26,15 @@ async def execute_queries(state: AssistantState) -> dict:
     user_context = state.get("user_context", {})
     conference_id = user_context.get("conference_id", "")
     user_id = user_context.get("user_id", "")
+
+    # Check simulation flags
+    sim = get_simulation_registry()
+    if sim.get("simulate_no_results"):
+        logger.warning(
+            "  [execute_queries] 🐛 SIMULATION: Returning empty results for all %d queries",
+            len(planned),
+        )
+        return {"query_results": {}, "current_node": "execute_queries"}
 
     if not planned:
         logger.info("  [execute_queries] SKIPPED — no planned queries")
