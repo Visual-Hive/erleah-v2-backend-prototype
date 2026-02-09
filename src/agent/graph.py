@@ -48,6 +48,7 @@ from src.monitoring.metrics import (
 from src.config import settings
 from src.services.cache import get_cache_service
 from src.services.errors import WorkflowTimeout, get_user_error
+from src.services.directus_streaming import DirectusMessageWriter
 
 logger = structlog.get_logger()
 
@@ -350,9 +351,14 @@ def _sanitize_for_debug(data: dict | None, max_str_len: int = 500) -> dict:
 
 
 async def stream_agent_response(
-    message: str, user_context: dict
+    message: str,
+    user_context: dict,
+    directus_writer: DirectusMessageWriter | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Stream agent responses as SSE events with 30s timeout.
+
+    Optionally writes response chunks to a Directus message record in parallel
+    (for frontend WebSocket consumption). SSE events are always yielded regardless.
 
     Event types:
     - acknowledgment: contextual acknowledgment from Grok node
@@ -474,6 +480,10 @@ async def stream_agent_response(
                     "data": {"node": langgraph_node, "message": progress_msg},
                 }
 
+                # Directus streaming: write progress message
+                if directus_writer and progress_msg:
+                    await directus_writer.write_progress(progress_msg)
+
                 # Debug: emit node_end for the PREVIOUS node (it just finished)
                 if debug and current_debug_node and current_debug_node not in node_ended:
                     prev = current_debug_node
@@ -566,6 +576,10 @@ async def stream_agent_response(
                         "event": "acknowledgment",
                         "data": {"message": ack_text},
                     }
+
+                    # Directus streaming: write acknowledgment as initial message text
+                    if directus_writer:
+                        await directus_writer.write_acknowledgment(ack_text)
                 else:
                     logger.info("  [sse] acknowledgment skipped (empty text)")
 
@@ -595,6 +609,9 @@ async def stream_agent_response(
                                             time_to_first_chunk=f"{ttfc:.3f}s",
                                         )
                                     yield {"event": "chunk", "data": {"text": text}}
+                                    # Directus streaming: write chunk
+                                    if directus_writer:
+                                        await directus_writer.write_chunk(text)
                     elif isinstance(content, str):
                         chunk_count += 1
                         if not first_chunk_sent:
@@ -606,6 +623,9 @@ async def stream_agent_response(
                                 time_to_first_chunk=f"{ttfc:.3f}s",
                             )
                         yield {"event": "chunk", "data": {"text": content}}
+                        # Directus streaming: write chunk
+                        if directus_writer:
+                            await directus_writer.write_chunk(content)
 
             # Detect when generate_response finishes → send done before evaluate
             if (
@@ -629,6 +649,17 @@ async def stream_agent_response(
                     },
                 }
 
+                # Directus streaming: complete the message with final text
+                if directus_writer:
+                    final_text = event.get("data", {}).get("output", {})
+                    response_text = (
+                        final_text.get("response_text", "")
+                        if isinstance(final_text, dict)
+                        else ""
+                    )
+                    if response_text:
+                        await directus_writer.complete(response_text)
+
             # --- Debug: capture latest output from on_chain_end ---
             if (
                 debug
@@ -651,6 +682,11 @@ async def stream_agent_response(
         )
         ERRORS.labels(error_type="WorkflowTimeout", node="pipeline").inc()
         error_info = get_user_error(WorkflowTimeout())
+        # Directus streaming: write error so message isn't left in streaming state
+        if directus_writer:
+            await directus_writer.error(
+                error_info.get("error", "The request timed out. Please try again.")
+            )
         yield {"event": "error", "data": error_info}
     except Exception as e:
         elapsed = time.perf_counter() - request_start
@@ -663,6 +699,11 @@ async def stream_agent_response(
         )
         ERRORS.labels(error_type=type(e).__name__, node="pipeline").inc()
         error_info = get_user_error(e)
+        # Directus streaming: write error so message isn't left in streaming state
+        if directus_writer:
+            await directus_writer.error(
+                error_info.get("error", "Something went wrong. Please try again.")
+            )
         yield {"event": "error", "data": error_info}
 
     # Fallback: if done was never sent (e.g. error path), send it now

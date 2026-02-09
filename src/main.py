@@ -38,6 +38,7 @@ from src.monitoring.metrics import (
 )
 from src.services.cache import get_cache_service
 from src.services.directus import get_directus_client
+from src.services.directus_streaming import DirectusMessageWriter
 from src.services.errors import get_user_error, QueueFull, RateLimited
 from src.services.qdrant import get_qdrant_service
 from src.services.rate_limiter import get_rate_limiter
@@ -371,6 +372,33 @@ async def chat_stream(request: ChatRequest):
 
     REQUESTS_QUEUED.inc()
 
+    # --- Directus Streaming: create writer if enabled and conversation_id provided ---
+    directus_writer: DirectusMessageWriter | None = None
+    assistant_message_id: str | None = None
+    conversation_id = request.user_context.conversation_id
+
+    if settings.directus_streaming_enabled and conversation_id:
+        try:
+            directus_writer = DirectusMessageWriter(
+                client=get_directus_client(),
+                debounce_ms=settings.directus_streaming_interval_ms,
+            )
+            assistant_message_id = await directus_writer.create_message(
+                conversation_id=conversation_id,
+            )
+            logger.info(
+                "  [endpoint] Directus streaming enabled",
+                assistant_message_id=assistant_message_id,
+                debounce_ms=settings.directus_streaming_interval_ms,
+            )
+        except Exception as e:
+            # Don't fail the request if Directus message creation fails
+            logger.error(
+                "  [endpoint] Directus streaming setup failed — continuing without it",
+                error=str(e),
+            )
+            directus_writer = None
+
     async def event_generator():
         """Generate SSE events from agent stream."""
         ACTIVE_REQUESTS.inc()
@@ -378,17 +406,27 @@ async def chat_stream(request: ChatRequest):
         event_count = 0
         logger.info("  [sse_stream] starting event generator")
         try:
-            async for event in stream_agent_response(message, user_context_dict):
+            async for event in stream_agent_response(
+                message, user_context_dict, directus_writer=directus_writer
+            ):
                 event_type = event.get("event", "message")
                 event_data = event.get("data", {})
                 event_count += 1
+
+                # Inject assistant_message_id into the done event
+                if event_type == "done" and assistant_message_id:
+                    event_data["assistant_message_id"] = assistant_message_id
 
                 yield {
                     "event": event_type,
                     "data": json.dumps(event_data),
                 }
         except asyncio.CancelledError:
-            # Client disconnected
+            # Client disconnected — ensure Directus message isn't left hanging
+            if directus_writer:
+                await directus_writer.error(
+                    "The request was cancelled. Please try again."
+                )
             elapsed = time.perf_counter() - start
             logger.warning(
                 "  [sse_stream] CLIENT DISCONNECTED",

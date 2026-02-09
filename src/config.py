@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     # Evaluation
     evaluation_enabled: bool = True
 
+    # Directus streaming — write response chunks to Directus messages
+    # so the frontend can watch via WebSocket (no SSE needed on frontend)
+    directus_streaming_enabled: bool = True
+    directus_streaming_interval_ms: int = 200  # Min ms between Directus PATCH calls
+
     # DevTools debug mode — emit node_start/node_end/pipeline_summary SSE events
     debug_mode: bool = True
 
