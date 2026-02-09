@@ -13,59 +13,55 @@
 
 ## Quick Start
 
+```bash
+# One command to start everything (backend + DevTools GUI):
+make dev
+```
+
+That's it! This starts:
+- **Backend** → http://localhost:8000 (FastAPI + Swagger at /docs)
+- **DevTools** → http://localhost:5174 (Svelte GUI for pipeline inspection)
+
+Press `Ctrl+C` to stop both servers.
+
+### First-Time Setup
+
+```bash
+# 1. Install dependencies
+uv sync                      # Python backend
+cd devtools && npm install   # DevTools frontend
+
+# 2. Configure environment
+cp .env.example .env         # Then edit .env with your API keys
+
+# 3. Start databases
+make db                      # Docker: PostgreSQL, Redis, Qdrant
+
+# 4. Start developing
+make dev                     # Backend + DevTools
+```
+
+### All Commands
+
+| Command | Description |
+|---------|-------------|
+| `make dev` | Start backend + DevTools (most common) |
+| `make backend` | Start backend only (FastAPI on :8000) |
+| `make devtools` | Start DevTools only (Svelte on :5174) |
+| `make test` | Run all tests |
+| `make db` | Start Docker databases |
+| `make db-stop` | Stop Docker databases |
+| `make install` | Install Python dependencies |
+| `make install-devtools` | Install DevTools npm dependencies |
+| `make setup` | First-time full setup |
+
+You can also use the script directly: `./scripts/dev.sh [backend|devtools|all]`
+
 ### Prerequisites
 
-- Python 3.11+
-- PostgreSQL 15+
-- Redis
-- Qdrant (vector database)
-
-### 1. Install Dependencies
-
-```bash
-# Install uv (fast Python package manager)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install project dependencies
-uv sync
-
-# Or use pip
-pip install -e .
-```
-
-### 2. Set Up Environment
-
-```bash
-# Copy example env file
-cp .env.example .env
-
-# Edit .env and add your Anthropic API key
-# ANTHROPIC_API_KEY=sk-ant-your-key-here
-```
-
-### 3. Start Databases (Docker)
-
-```bash
-# Start PostgreSQL, Redis, and Qdrant
-docker-compose up -d
-
-# Check they're running
-docker-compose ps
-```
-
-### 4. Run the Server
-
-```bash
-# Development mode with auto-reload
-uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
-
-# Or use the convenience script
-python -m src.main
-```
-
-Server starts at: http://localhost:8000
-
-API docs at: http://localhost:8000/docs
+- Python 3.11+ with [uv](https://github.com/astral-sh/uv)
+- Node.js 18+ (for DevTools)
+- Docker (for PostgreSQL, Redis, Qdrant)
 
 ## Project Structure
 
