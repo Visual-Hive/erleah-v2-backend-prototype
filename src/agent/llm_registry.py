@@ -112,9 +112,7 @@ def _create_llm(provider: str, model_id: str) -> BaseChatModel:
 
         api_key = settings.groq_api_key
         if not api_key:
-            raise ValueError(
-                "GROQ_API_KEY not set. Add it to .env to use Groq models."
-            )
+            raise ValueError("GROQ_API_KEY not set. Add it to .env to use Groq models.")
         return ChatGroq(  # type: ignore[call-arg]
             model=model_id,
             api_key=api_key,
