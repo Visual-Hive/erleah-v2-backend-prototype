@@ -103,6 +103,7 @@ async def faceted_search(
     user_profile_facets: dict[str, str] | None = None,
     filters: dict[str, Any] | None = None,
     score_threshold: float | None = None,
+    query_vector: list[float] | None = None,
 ) -> List[SearchResult]:
     """
     Search using the multi-faceted strategy with weighted scoring.
@@ -119,6 +120,7 @@ async def faceted_search(
         conference_id=conference_id,
         limit=limit,
         has_user_facets=bool(user_profile_facets),
+        has_precomputed_vector=query_vector is not None,
     )
 
     qdrant = get_qdrant_service()
@@ -146,9 +148,11 @@ async def faceted_search(
         logger.info(
             "  [SEARCH] Strategy: STANDARD FACETED (embed query -> search all facets)"
         )
-        query_vector = await embedding_service.embed_text(query)
+        if query_vector is None:
+            query_vector = await embedding_service.embed_text(query)
+
         logger.info(
-            "  [SEARCH] Query embedded (dims=%d), searching %s_facets...",
+            "  [SEARCH] Query vector ready (dims=%d), searching %s_facets...",
             len(query_vector),
             entity_type,
         )
@@ -384,6 +388,7 @@ async def hybrid_search(
     user_profile_facets: dict[str, str] | None = None,
     filters: dict[str, Any] | None = None,
     score_threshold: float | None = None,
+    query_vector: list[float] | None = None,
 ) -> List[SearchResult]:
     """Router for choosing between Master Search (Specific) vs Faceted Search (Vague)."""
 
@@ -404,6 +409,7 @@ async def hybrid_search(
             user_profile_facets,
             filters,
             score_threshold=score_threshold,
+            query_vector=query_vector,
         )
 
     # Fallback to Master collection (Simple vector search)
@@ -412,7 +418,9 @@ async def hybrid_search(
     )
     qdrant = get_qdrant_service()
     embedding = get_embedding_service()
-    query_vector = await embedding.embed_text(query)
+
+    if query_vector is None:
+        query_vector = await embedding.embed_text(query)
 
     raw = await qdrant.search(
         collection_name=f"{entity_type}_master",

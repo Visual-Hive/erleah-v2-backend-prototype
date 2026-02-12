@@ -98,6 +98,21 @@ class ModelConfig:
 
 def _create_llm(provider: str, model_id: str) -> BaseChatModel:
     """Create a LangChain chat model instance for a given provider + model."""
+    if settings.use_llm_proxy:
+        from langchain_openai import ChatOpenAI
+
+        logger.info(
+            "  [llm_registry] using local LLM proxy",
+            proxy_url=settings.llm_proxy_url,
+            model=settings.llm_proxy_model,
+        )
+        return ChatOpenAI(
+            model=settings.llm_proxy_model,
+            api_key=settings.llm_proxy_api_key,
+            base_url=settings.llm_proxy_url,
+            temperature=0,
+        )
+
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 

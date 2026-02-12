@@ -48,7 +48,21 @@ class Settings(BaseSettings):
     # Evaluation
     evaluation_enabled: bool = True
 
+    # Streaming mode
+    directus_streaming_enabled: bool = True  # Write chunks to Directus messages
+    directus_streaming_interval_ms: int = (
+        200  # Min ms between Directus updates (debounce)
+    )
+
+    # LLM Proxy (Local development)
+    use_llm_proxy: bool = False
+    llm_proxy_url: str = "http://localhost:7999/v1"
+    llm_proxy_api_key: str = "mythong2005"
+    llm_proxy_model: str = "gemini_cli/gemini-3-flash-preview"
+    use_proxy_for_embedding: bool = False  # Keep False to ensure Qdrant compatibility
+
     # DevTools debug mode — emit node_start/node_end/pipeline_summary SSE events
+
     debug_mode: bool = True
 
     # OpenTelemetry

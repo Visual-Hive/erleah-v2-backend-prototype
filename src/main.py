@@ -19,6 +19,7 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from sse_starlette.sse import EventSourceResponse
 
 from src.agent.graph import stream_agent_response
+from src.services.directus_streaming import DirectusMessageWriter
 from src.config import settings
 from src.middleware.logging import TraceIdMiddleware, configure_structlog
 from src.middleware.metrics import MetricsMiddleware, LoadMonitoringMiddleware
@@ -353,13 +354,28 @@ async def chat_stream(request: ChatRequest):
             headers={"Retry-After": "5"},
         )
 
+    # Initialize Directus writer if enabled
+    directus_writer = None
+    if settings.directus_streaming_enabled and request.user_context.conversation_id:
+        try:
+            directus_writer = DirectusMessageWriter(
+                get_directus_client(),
+                debounce_ms=settings.directus_streaming_interval_ms,
+            )
+            await directus_writer.create_message(request.user_context.conversation_id)
+        except Exception as e:
+            logger.error("  [endpoint] Failed to init Directus writer", error=str(e))
+            # Fallback: proceed without Directus writer (SSE only)
+
     async def event_generator():
         """Generate SSE events from agent stream."""
         ACTIVE_REQUESTS.inc()
         start = time.perf_counter()
         event_count = 0
         try:
-            async for event in stream_agent_response(message, user_context_dict):
+            async for event in stream_agent_response(
+                message, user_context_dict, directus_writer=directus_writer
+            ):
                 event_type = event.get("event", "message")
                 event_data = event.get("data", {})
                 event_count += 1

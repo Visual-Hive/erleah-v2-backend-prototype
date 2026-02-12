@@ -36,6 +36,7 @@ from src.agent.nodes.update_profile import update_profile
 from src.agent.llm_registry import get_llm_registry
 from src.agent.prompt_registry import get_prompt_registry
 from src.agent.state import AssistantState
+from src.services.directus_streaming import DirectusMessageWriter
 from src.middleware.logging import trace_id_var
 from src.monitoring.metrics import (
     LLM_TOKENS,
@@ -52,7 +53,7 @@ from src.services.errors import WorkflowTimeout, get_user_error
 
 logger = structlog.get_logger()
 
-WORKFLOW_TIMEOUT = 30.0  # seconds
+WORKFLOW_TIMEOUT = 120.0  # seconds (increased for Proxy/Gemini latency)
 
 
 # --- Conditional edges ---
@@ -279,12 +280,15 @@ def _sanitize_for_debug(data: dict | None, max_str_len: int = 500) -> dict:
 
 
 async def stream_agent_response(
-    message: str, user_context: dict
+    message: str,
+    user_context: dict,
+    directus_writer: DirectusMessageWriter | None = None,
 ) -> AsyncGenerator[dict, None]:
     request_start = time.perf_counter()
     first_feedback_sent = False
     first_chunk_sent = False
     trace_id = trace_id_var.get("")
+    full_response_text = ""
     logger.info(
         "========== PIPELINE START ==========",
         trace_id=trace_id,
@@ -363,6 +367,8 @@ async def stream_agent_response(
                     "event": "progress",
                     "data": {"node": langgraph_node, "message": progress_msg},
                 }
+                if directus_writer and progress_msg:
+                    await directus_writer.write_progress(progress_msg)
 
                 if (
                     debug
@@ -409,6 +415,8 @@ async def stream_agent_response(
                 )
                 if ack_text:
                     yield {"event": "acknowledgment", "data": {"message": ack_text}}
+                    if directus_writer:
+                        await directus_writer.write_acknowledgment(ack_text)
 
             if kind == "on_chain_end" and langgraph_node == "generate_response":
                 output = event.get("data", {}).get("output", {})
@@ -427,7 +435,10 @@ async def stream_agent_response(
                             TIME_TO_FIRST_CHUNK.observe(
                                 time.perf_counter() - request_start
                             )
+                        full_response_text += content
                         yield {"event": "chunk", "data": {"text": content}}
+                        if directus_writer:
+                            await directus_writer.write_chunk(content)
 
             if (
                 kind == "on_chain_end"
@@ -435,6 +446,14 @@ async def stream_agent_response(
                 and not done_sent
             ):
                 done_sent = True
+                if directus_writer:
+                    await directus_writer.complete(
+                        final_text=full_response_text,
+                        metadata={
+                            "trace_id": trace_id,
+                            "referenced_ids": referenced_ids,
+                        },
+                    )
                 yield {
                     "event": "done",
                     "data": {"trace_id": trace_id, "referenced_ids": referenced_ids},
@@ -448,9 +467,15 @@ async def stream_agent_response(
                         node_last_output[langgraph_node] = sanitized
 
     except asyncio.TimeoutError:
-        yield {"event": "error", "data": get_user_error(WorkflowTimeout())}
+        err = get_user_error(WorkflowTimeout())
+        if directus_writer:
+            await directus_writer.error(err["error"])
+        yield {"event": "error", "data": err}
     except Exception as e:
-        yield {"event": "error", "data": get_user_error(e)}
+        err = get_user_error(e)
+        if directus_writer:
+            await directus_writer.error(err["error"])
+        yield {"event": "error", "data": err}
 
     if not done_sent:
         yield {

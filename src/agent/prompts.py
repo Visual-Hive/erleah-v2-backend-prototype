@@ -21,7 +21,14 @@ Output schema:
   "direct_response": bool,
   "faq_id": "string" | null,
   "query_mode": "specific" | "profile" | "hybrid" | null,
-  "queries": [],
+  "queries": [
+    {
+      "table": "sessions" | "exhibitors" | "speakers" | "attendees",
+      "query_text": "string",
+      "search_mode": "faceted" | "profile" | "hybrid",
+      "limit": int
+    }
+  ],
   "profile_update": {"needs_update": bool, "updates": object | null}
 }
 """

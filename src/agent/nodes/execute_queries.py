@@ -15,35 +15,41 @@ logger = structlog.get_logger()
 async def execute_queries(state: AssistantState) -> dict:
     """Execute all planned queries in parallel using hybrid_search.
 
-    Each query maps directly to a hybrid_search call.
-    Results are grouped by table name.
+    Implementation:
+    1. Collect all unique query texts.
+    2. Batch-embed them in one call to OpenAI/Azure (saves latency/RPM).
+    3. Execute all table searches in parallel using pre-computed vectors.
     """
     logger.info("===== NODE 5: EXECUTE QUERIES =====")
     planned = state.get("planned_queries", [])
     user_context = state.get("user_context", {})
     conference_id = user_context.get("conference_id", "")
-    user_id = user_context.get("user_id", "")
 
     if not planned:
         logger.info("  [execute_queries] SKIPPED — no planned queries")
         return {"query_results": {}, "current_node": "execute_queries"}
 
+    # 1. Collect unique query texts for batching
+    unique_texts = list(
+        set(q.get("query_text", "") for q in planned if q.get("query_text"))
+    )
     logger.info(
-        "  [execute_queries] Executing %d queries in parallel...",
+        "  [execute_queries] Batching %d unique queries from %d planned searches",
+        len(unique_texts),
         len(planned),
     )
-    for i, q in enumerate(planned):
-        logger.info(
-            "  [execute_queries] Query %d: table=%s mode=%s text='%s' limit=%d",
-            i + 1,
-            q.get("table", "?"),
-            q.get("search_mode", "?"),
-            str(q.get("query_text", ""))[:100],
-            q.get("limit", 10),
-        )
 
-    cache = get_cache_service()
+    # 2. Batch embed
+    from src.services.embedding import get_embedding_service
 
+    embedding_service = get_embedding_service()
+
+    text_to_vector = {}
+    if unique_texts:
+        vectors = await embedding_service.embed_batch(unique_texts)
+        text_to_vector = dict(zip(unique_texts, vectors))
+
+    # 3. Execute searches in parallel
     async def _run_query(q: dict) -> tuple[str, list]:
         table = q.get("table", "sessions")
         search_mode = q.get("search_mode", "faceted")
@@ -51,21 +57,7 @@ async def execute_queries(state: AssistantState) -> dict:
         limit = q.get("limit", 10)
         use_faceted = search_mode == "faceted"
 
-        # Cache query results (skip user-specific/profile queries)
-        is_cacheable = not user_id or search_mode != "profile"
-        cache_key = make_key(
-            "query", table, query_text, search_mode, str(limit), conference_id
-        )
-
-        if is_cacheable:
-            cached = await cache.get(cache_key)
-            if cached is not None:
-                logger.info(
-                    "  [execute_queries] Cache HIT for %s query: '%s'",
-                    table,
-                    query_text[:50],
-                )
-                return table, cached
+        vector = text_to_vector.get(query_text)
 
         try:
             logger.info(
@@ -80,6 +72,7 @@ async def execute_queries(state: AssistantState) -> dict:
                 conference_id=conference_id,
                 use_faceted=use_faceted,
                 limit=limit,
+                query_vector=vector,
             )
             # Convert SearchResult dataclasses to dicts for serialization
             result_dicts = [asdict(r) for r in results]
@@ -101,8 +94,6 @@ async def execute_queries(state: AssistantState) -> dict:
                     r.get("total_score", 0),
                     r.get("facet_matches", 0),
                 )
-            if is_cacheable and result_dicts:
-                await cache.set(cache_key, result_dicts, ttl=300)
             return table, result_dicts
         except Exception as e:
             logger.warning(
