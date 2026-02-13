@@ -21,12 +21,13 @@ class Settings(BaseSettings):
     # Anthropic (Haiku for evaluation)
     anthropic_haiku_model: str = "claude-haiku-4-5-20251001"
 
-    # xAI / Grok (acknowledgments)
-    xai_api_key: str = ""
-    xai_model: str = "grok-3-mini-fast-latest"
-
     # Groq (fast inference via LPU)
     groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+
+    # xAI / Grok (acknowledgments) - DEPRECATED in favor of Groq
+    xai_api_key: str = ""
+    xai_model: str = "grok-3-mini-fast-latest"
 
     # App Config
     environment: str = "development"

@@ -19,7 +19,7 @@ async def plan_queries(state: AssistantState) -> dict:
     """
     logger.info("===== NODE 4: PLAN QUERIES =====")
     messages = state["messages"]
-    user_message = messages[-1].content if messages else ""
+    user_message = str(messages[-1].content) if messages else ""
     profile = state.get("user_profile", {})
     history = state.get("conversation_history", [])
     user_context = state.get("user_context", {})

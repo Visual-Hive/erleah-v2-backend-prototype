@@ -502,5 +502,5 @@ async def _stream_with_timeout(initial_state: AssistantState):
     deadline = time.monotonic() + WORKFLOW_TIMEOUT
     async for event in graph.astream_events(initial_state, version="v2"):
         if time.monotonic() > deadline:
-            raise asyncio.TimeoutError("Workflow exceeded 30s timeout")
+            raise asyncio.TimeoutError(f"Workflow exceeded {WORKFLOW_TIMEOUT}s timeout")
         yield event

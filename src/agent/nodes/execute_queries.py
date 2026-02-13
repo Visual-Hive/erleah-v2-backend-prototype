@@ -7,19 +7,12 @@ import structlog
 
 from src.agent.state import AssistantState
 from src.search.faceted import hybrid_search, extract_display_name
-from src.services.cache import get_cache_service, make_key
 
 logger = structlog.get_logger()
 
 
 async def execute_queries(state: AssistantState) -> dict:
-    """Execute all planned queries in parallel using hybrid_search.
-
-    Implementation:
-    1. Collect all unique query texts.
-    2. Batch-embed them in one call to OpenAI/Azure (saves latency/RPM).
-    3. Execute all table searches in parallel using pre-computed vectors.
-    """
+    """Execute all planned queries in parallel using hybrid_search."""
     logger.info("===== NODE 5: EXECUTE QUERIES =====")
     planned = state.get("planned_queries", [])
     user_context = state.get("user_context", {})
@@ -29,14 +22,26 @@ async def execute_queries(state: AssistantState) -> dict:
         logger.info("  [execute_queries] SKIPPED — no planned queries")
         return {"query_results": {}, "current_node": "execute_queries"}
 
-    # 1. Collect unique query texts for batching
     unique_texts = list(
         set(q.get("query_text", "") for q in planned if q.get("query_text"))
     )
+
+    query_mode = state.get("query_mode", "hybrid")
+
+    # ---------------------------------------------------------
+    # BUSINESS LOGIC: Define distinct thresholds for distinct tools
+    # ---------------------------------------------------------
+    if query_mode == "specific":
+        # Master Search (Cosine Similarity): 0.15 is sensitive enough for name lookups
+        threshold = 0.15
+    else:
+        # Faceted Search (Composite Score 0-10): 3.0 requires meaningful matches
+        threshold = 3.0
+
     logger.info(
-        "  [execute_queries] Batching %d unique queries from %d planned searches",
-        len(unique_texts),
-        len(planned),
+        "  [execute_queries] Intent-based threshold active",
+        query_mode=query_mode,
+        threshold=threshold,
     )
 
     # 2. Batch embed
@@ -55,15 +60,19 @@ async def execute_queries(state: AssistantState) -> dict:
         search_mode = q.get("search_mode", "faceted")
         query_text = q.get("query_text", "")
         limit = q.get("limit", 10)
-        use_faceted = search_mode == "faceted"
+
+        # Architecture choice: If specific, force Master Search.
+        # Faceted search is for recommendations, not lookups.
+        use_faceted = (search_mode == "faceted") and (query_mode != "specific")
 
         vector = text_to_vector.get(query_text)
 
         try:
             logger.info(
-                "  [execute_queries] Searching Qdrant: table=%s faceted=%s query='%s'",
+                "  [execute_queries] Searching Qdrant: table=%s faceted=%s mode=%s query='%s'",
                 table,
                 use_faceted,
+                query_mode,
                 query_text[:80],
             )
             results = await hybrid_search(
@@ -73,28 +82,26 @@ async def execute_queries(state: AssistantState) -> dict:
                 use_faceted=use_faceted,
                 limit=limit,
                 query_vector=vector,
+                score_threshold=None,  # We filter composite/raw manually below for precision
             )
-            # Convert SearchResult dataclasses to dicts for serialization
-            result_dicts = [asdict(r) for r in results]
+
+            # ---------------------------------------------------------
+            # MANUAL FILTERING: Apply the correct scale for the tool used
+            # ---------------------------------------------------------
+            filtered_results = []
+            for r in results:
+                # If we used Master search, total_score is 0.0-1.0
+                # If we used Faceted search, total_score is 0.0-10.0
+                if r.total_score >= threshold:
+                    filtered_results.append(asdict(r))
+
             logger.info(
-                "  [execute_queries] Results for %s: %d matches found",
+                "  [execute_queries] Results for %s: %d matches found (after threshold %.2f)",
                 table,
-                len(result_dicts),
+                len(filtered_results),
+                threshold,
             )
-            for j, r in enumerate(result_dicts[:5]):
-                display_name = extract_display_name(
-                    r.get("payload", {}).get("name"),
-                    r.get("payload", {}).get("description", ""),
-                    r.get("entity_id", "?")[:12],
-                )
-                logger.info(
-                    "    [execute_queries] #%d: %s (score=%.3f, facets=%d)",
-                    j + 1,
-                    display_name[:60],
-                    r.get("total_score", 0),
-                    r.get("facet_matches", 0),
-                )
-            return table, result_dicts
+            return table, filtered_results
         except Exception as e:
             logger.warning(
                 "  [execute_queries] Query FAILED: table=%s error=%s", table, str(e)
@@ -104,19 +111,11 @@ async def execute_queries(state: AssistantState) -> dict:
     tasks = [_run_query(q) for q in planned]
     results_list = await asyncio.gather(*tasks)
 
-    # Merge results by table (multiple queries may target the same table)
     query_results: dict[str, list] = {}
     for table, results in results_list:
         if table in query_results:
             query_results[table].extend(results)
         else:
             query_results[table] = results
-
-    total = sum(len(v) for v in query_results.values())
-    logger.info(
-        "===== NODE 5: EXECUTE QUERIES COMPLETE =====",
-        total_results=total,
-        results_per_table={t: len(v) for t, v in query_results.items()},
-    )
 
     return {"query_results": query_results, "current_node": "execute_queries"}

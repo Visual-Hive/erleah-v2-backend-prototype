@@ -65,6 +65,7 @@ class DirectusClient:
             "message_complete": False,
             "message_error": False,
         }
+
         response = await self._client.post("/items/Message", json=payload)
         response.raise_for_status()
         return response.json()["data"]

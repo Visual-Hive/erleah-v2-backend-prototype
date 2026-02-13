@@ -26,7 +26,9 @@ class RateLimiter:
         self._buckets[key] = [t for t in bucket if t > cutoff]
 
         if len(self._buckets[key]) >= self.max_requests:
-            logger.warning("rate_limit.exceeded", key=key, count=len(self._buckets[key]))
+            logger.warning(
+                "rate_limit.exceeded", key=key, count=len(self._buckets[key])
+            )
             return False
 
         self._buckets[key].append(now)
@@ -37,8 +39,7 @@ class RateLimiter:
         now = time.monotonic()
         cutoff = now - self.window_seconds
         expired_keys = [
-            k for k, v in self._buckets.items()
-            if all(t <= cutoff for t in v)
+            k for k, v in self._buckets.items() if all(t <= cutoff for t in v)
         ]
         for k in expired_keys:
             del self._buckets[k]
@@ -51,5 +52,6 @@ _rate_limiter: RateLimiter | None = None
 def get_rate_limiter() -> RateLimiter:
     global _rate_limiter
     if _rate_limiter is None:
-        _rate_limiter = RateLimiter(max_requests=10, window_seconds=60.0)
+        # Increased for stability testing (100 requests per 60 seconds)
+        _rate_limiter = RateLimiter(max_requests=100, window_seconds=60.0)
     return _rate_limiter

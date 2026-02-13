@@ -11,13 +11,13 @@ from typing import Any
 import structlog
 
 from src.agent.prompts import (
+    ACKNOWLEDGMENT_SYSTEM,
     EVALUATE_SYSTEM,
     GENERATE_RESPONSE_SYSTEM,
     PLAN_QUERIES_SYSTEM,
     PROFILE_DETECT_SYSTEM,
     PROFILE_UPDATE_SYSTEM,
 )
-from src.services.grok import ACKNOWLEDGMENT_SYSTEM
 
 logger = structlog.get_logger()
 

@@ -33,6 +33,14 @@ async def fetch_data_parallel(state: AssistantState) -> dict:
         nonlocal profile
         if not user_id:
             return
+        import uuid
+
+        try:
+            uuid.UUID(str(user_id))
+        except (ValueError, TypeError):
+            logger.warning("  [fetch_data] Invalid UUID for user_id", user_id=user_id)
+            return
+
         cache_key = make_key("profile", user_id)
         cached = await cache.get(cache_key)
         if cached is not None:
@@ -49,6 +57,17 @@ async def fetch_data_parallel(state: AssistantState) -> dict:
         nonlocal history
         if not conversation_id:
             return
+        import uuid
+
+        try:
+            uuid.UUID(str(conversation_id))
+        except (ValueError, TypeError):
+            logger.warning(
+                "  [fetch_data] Invalid UUID for conversation_id",
+                conversation_id=conversation_id,
+            )
+            return
+
         try:
             client = get_directus_client()
             history = await client.get_conversation_context(conversation_id)

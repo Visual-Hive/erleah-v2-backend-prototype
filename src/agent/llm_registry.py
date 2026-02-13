@@ -58,14 +58,21 @@ _MODEL_LOOKUP: dict[tuple[str, str], ModelOption] = {
     (m.provider, m.model_id): m for m in AVAILABLE_MODELS
 }
 
-# LLM nodes that the registry manages (generate_acknowledgment uses Grok client separately)
-LLM_NODES = ["plan_queries", "generate_response", "evaluate", "update_profile"]
+# LLM nodes that the registry manages
+LLM_NODES = [
+    "plan_queries",
+    "generate_response",
+    "evaluate",
+    "update_profile",
+    "acknowledgment",
+]
 
 DEFAULT_ASSIGNMENTS: dict[str, tuple[str, str]] = {
     "plan_queries": ("anthropic", "claude-sonnet-4-20250514"),
     "generate_response": ("anthropic", "claude-sonnet-4-20250514"),
     "evaluate": ("anthropic", "claude-haiku-4-5-20251001"),
     "update_profile": ("anthropic", "claude-sonnet-4-20250514"),
+    "acknowledgment": ("groq", "llama-3.3-70b-versatile"),
 }
 
 
