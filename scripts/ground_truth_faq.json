@@ -1,0 +1,402 @@
+[
+  {
+    "question": "Meeting Request Process for Exhibitors? How do I accept a meeting request as an exhibitor? Will my team see meetings assigned to them? ",
+    "answer": "When an attendee wants to meet with your company, they'll send a meeting request through Erleah. Here's how it works on your end:\nThe primary point of contact (POC) for your exhibitor profile will receive the meeting invitation first. They'll be able to see the attendee's details and any information about why they want to meet or what they're interested in.\nFrom there, the POC has the flexibility to decide who on the team should take the meeting. They can assign it to themselves or to any other team member who's registered under your exhibitor profile. Once they've selected the right person and confirmed the meeting details, the system locks it in.\nThe team member who's been assigned will then see the meeting appear in their personal schedule within Erleah on My Agenda page, along with all the relevant attendee information and context they need to prepare. This way, everyone knows who they're meeting with and when, without any back-and-forth coordination needed."
+  },
+  {
+    "question": "\"How can I find a specific speaker?\", \"What session is Jane Doe speaking in?\", \"Show me Jane Doe's sessions\", \"Where can I find Jane Doe's talk?\", \"When is Jane Doe speaking?\"",
+    "answer": "You can ask me directly for any speaker by name, and I’ll search the entire event program to find where and when they are speaking. For example, you can say “What session is Jane Doe speaking in?” or “Show me Jane Doe’s sessions,” and I’ll provide the session titles, times, and locations. If a speaker appears in more than one session, I’ll list them all so you can easily plan your schedule. You can also ask broader questions like “Who is speaking about sustainability?” or “Which sessions feature data analytics experts?” and I’ll identify the relevant speakers and sessions for you."
+  },
+  {
+    "question": "How do I ask for support about Braindate? ",
+    "answer": "There are Learning Concierges that are ready to help on the platform itself. When the event is live, real humans will be there to help you troubleshoot, create topics and just chat! You can use the chat option when it’s offline to send a support message and a Learning Concierge will get back to you as soon as possible."
+  },
+  {
+    "question": "Event Technolodgy Awards Judges ",
+    "answer": "Cat Kevern\r\nElectric Cat Productions\r\nCat Kevern is an events industry stalwart, marketing expert, champion of women and entrepreneur. With a decade of events experience behind her, Cat is the Founder of Electric Cat Productions a B2B marketing agency serving event suppliers and organisers, Director of NOWIE (The Network of Women in Events CIC) and Fractional Chief Marketing Officer at event technology firm, One World Rental.\r\n\r\nShe’s a passionate advocate for diversity and inclusion in the events industry, with a particular focus on women’s experiences. Cat is a seasoned keynote and panel speaker on a vast range of topics from DEI, entrepreneurship, marketing and building a brand and the power of networking."
+  },
+  {
+    "question": "\"What is My Agenda?\", \"Where can I find my schedule?\", \"What am I doing today?\", \"How do I best organise my sessions?\",   \"What to do first?\", \"What's in my diary?\", \"Where is my schedule?\"",
+    "answer": "In the My Agenda section you can add sessions and 1-on-1 meetings. This feature is available only in the logged-in web version, where your personal schedule and preferences are stored securely and kept up to date throughout the event. Click on a specific date to see your schedule for the day as session or meeting cards arranged in chronological order. If you're looking for a specific meeting, just use the search bar underneath the date timeline. You can also block a time slot using the dedicated button right next to the search bar... we all need a break from time to time! To view any cancelled sessions or rejected meetings, simply use the toggle to the block-a-slot-button."
+  },
+  {
+    "question": "No one has booked my braindate topic. What should I do?",
+    "answer": "Sometimes there’s just not enough time to book all the braindates we would like – don’t take it personally! Instead, try joining a group discussion on a similar subject. Pro tip: The more topics you create, the better your chances of meeting people will be. Try creating more topics, or adding more precise tags to your topic!"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Onsite Badging and Check-In Solutions ",
+    "answer": "Bizzabo, Blink, EventMobi, Fenix Event Tech, Jomablue, Lüp Events, RefTech"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Festival Technology ",
+    "answer": "Eventcube, GOAllAreas by Ginger Owl Productions, NOQ Group, Weezevent"
+  },
+  {
+    "question": "How does Braindate work?",
+    "answer": "Post a braindate topic about something that you’re interested in discussing in the Topic Market. Participants who want to dive into your topic with you can then send you an invitation to meet! Explore topics that interest you with the Search, Sort and Filter functions, then send invitations for one-on-one braindates or join group braindates directly.\n\nJust before your braindate is set to begin, a Pop Up Banner will appear on the Braindate platform with a link to your topic, where you can join your virtual braindate. If you add your phone number in your profile Preferences, we’ll send you an SMS reminder before your Braindate, with a direct link to join your call."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists ",
+    "answer": "We are thrilled to announce this year's Event Tech Awards finalists! The standard of submissions has been outstanding, showcasing the creativity, innovation, and impact that continue to drive our industry forward. Reaching the finalist stage is an achievement in itself, reflecting the hard work and excellence of each entrant. Congratulations to all who made it this far - you are shaping the future of event technology.Headline Sponsor: OneWorldRental"
+  },
+  {
+    "question": "How can I find the best people to network with? Is there a list? ",
+    "answer": "Yes. Once you log in to the main Erleah platform, our AI provides you with a personalized list of 'Best Matches' directly on your homepage. You can explore this list and the full attendee directory in the Networking Module to start connecting."
+  },
+  {
+    "question": "What is Erleah's main benefit for event organizers?",
+    "answer": "I provide three main benefits to organizers: 1) I boost revenue by increasing exhibitor ROI and creating new sponsorship opportunities. 2) I provide a unified intelligence dashboard with deep insights into attendee interests. 3) I reduce costs by automating up to 80% of common support inquiries."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Event Technologist ",
+    "answer": "Lauren Jones (BW Events Tech), Tess Vismale (DAHLIA+Agency), Aidan Pawson (Zicket - The Ticket Company)"
+  },
+  {
+    "question": "Who exhibits at the Event Tech Live ",
+    "answer": "Event Tech Live is the premier showcase for cutting-edge event technology. The exhibition floor pulses with energy, featuring live demonstrations, hands-on activations, and product launches: from AI-powered tools to immersive visual design solutions – designed to inspire and equip attendees with next-generation event experiences."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Technology Partnership ",
+    "answer": "Blink, First Sight Media & Voxo & Lineup Ninja & NHS Confederation & NHS England, Kaboodle & Weezevent, Lüp Events & RX Global, RainFocus & Adobe"
+  },
+  {
+    "question": "What companies think of exhibiting at Event Tech Live ",
+    "answer": ""
+  },
+  {
+    "question": "Hosted Buyer Programme  ",
+    "answer": "Programme Benefits\r\nCurated supplier meetings – We’ll arrange focussed 15-minute sessions with technology providers that match your specific needs and upcoming projects.\r\n\r\nEducational content – Access all ETL London sessions, product demonstrations, and networking areas.\r\n\r\nTravel support – Receive reimbursement toward your travel or accommodation expenses as recognition of your time investment.\r\n\r\nPeer networking – Connect with other event professionals facing similar challenges and opportunities."
+  },
+  {
+    "question": "\"Can you help with directions around the venue?\", \"Where is the Keynote Hall?\", \"How do I get to the networking lounge?\", \"Where's the networking lounge located?\", Please tell me how to find the Keynote Hall.\", \"Could you give indications on how to access the networking lounge?\", \"Please provide the shortest way to the networking lounge.\", \"Can you explain the way to the Keynote Hall?\"",
+    "answer": "Yes, I can help with locations. Ask me things like 'Where is the Keynote Hall?' or 'Where is exhibitors name?' I will do my best to guide you. For a full interactive venue map, please refer to the Expo FP map here https://etl25.expofp.com/ or by clicking on the Floor Plan Button that you can find in any exhibitor and session cards. "
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Most innovative and High-Tech Venue ",
+    "answer": "Harrogate Convention Centre, ICC Belfast"
+  },
+  {
+    "question": "\"I'm a Hosted Buyer. How do my meetings work?\", \"Where do I find my hosted buyer schedule?\", \"How do I prepare for my Hosted buyer meetings?\", \"I have a Hosted Buyer meeting and I don't know what to say.\", \"What should I talk about during my meeting?\", \"Which are the most relevant points of interest to mention during my Hosted Buyer meeting?\", \"Can I see my Hosted Buyer plan?\", \"What appointments do I have as a Hosted Buyer?\", \"How do I change my Hosted Buyer meetings?\", \"Can I modify my Hosted Buyer schedule?\", \"I need to cancel a Hosted Buyer meeting. How do I do that?\", \"Please adjust my Hosted Buyer schedule to allow for a break in five minutes.\"",
+    "answer": "As a Hosted Buyer, a personalized diary of pre-qualified meetings has been created for you based on the detailed purchasing needs and budget information you provided. You can view your full schedule of confirmed meetings in the 'My Agenda' section. For each meeting, I can also provide helpful 'talking points' to ensure you are well-prepared. These meetings cannot be changed or amended."
+  },
+  {
+    "question": "\"How do I accept or decline a meeting request I've received?\", \"Where do I see my incoming meeting requests?\", \"How do I manage my meeting invitations?\", \"What if I don't want to meet somebody?\", \"Are meetings automatically booked in?\", \"Do I have to see everyone who sends a request?\"",
+    "answer": "Please go to the 'My Agenda' section and look under the relevant calendar day. You will see all incoming requests there, with options to 'Accept' or 'Decline' each one."
+  },
+  {
+    "question": "How should I host and facilitate my braindate? ",
+    "answer": "Make sure everyone introduces themselves and contributes to the discussion.\r\n\r\nAsk the participant(s) what interested them about the topic.\r\n\r\nBe transparent and honest about your own experience related to the topic: You don’t need to be an expert to lead a braindate.\r\n\r\nDon’t forget that everyone has something interesting they can add to the conversation: Adopt a beginner’s mindset.\r\n\r\nDon’t forget to share contact information. Many great relationships started with a simple conversation."
+  },
+  {
+    "question": "\"I want to take notes before my meeting, can I do that in Erleah?\" \"I've finished my meeting and I want to give feedback\" \"How do I rate the meeting I just had?\" \"Can I write down some key points from my meeting in Erleah?\"",
+    "answer": "Before, during and after a meeting, you can use the 'Notes' field to make notes, for example some talking points to discuss, some research you've done on your meeting partner, some things that were said during the meeting, some thoughts you had after the meeting. You can access notes by clicking the meeting tile in your 'My Agenda' section and finding the notes field. You will also be able to rate your meeting after the start time has passed, again by clicking the meeting tile in 'My Agenda' and finding the rating section. "
+  },
+  {
+    "question": "Event Technolodgy Awards Judges ",
+    "answer": "RJ Crowder-Schaefer\r\nBloomberg\r\nRJ leads the Event Technology and Product team at Bloomberg where he manages a global team of digital event technicians, QA specialists, product and project managers to oversee an event tech stack responsible for the execution of 3,000+ events annually. He previously worked at Meredith Corporation (now Dotdash Meredith) as a Senior Product Manager, responsible for digital back end & front end product enhancements across 30+ brands, including People, Entertainment Weekly, Martha Stewart, Better Homes and Gardens and Allrecipes. Based in New York City, RJ began his career managing large scale, in-person corporate productions including product launches and New York Fashion Week."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Technology Start-Up ",
+    "answer": "Fenix Event Tech, Rozie Synopsis"
+  },
+  {
+    "question": "Event Technolodgy Awards Judges ",
+    "answer": "Nick Westerman\nNHS Confederation\nNick is an experienced event producer, with 15 years in the industry. His expertise spans music festivals to conferences and he has delivered events at various scales. Currently serving as the Head of Strategic Partner Events at NHS Confederation, Nick brings a strategic approach to event planning, ensuring seamless execution and memorable experiences.\nBeyond work, you'll find Nick playing keyboard or sax in the various music projects he's involved in, or stood next to a pizza oven, as he tries to create the perfect Neapolitan pizza."
+  },
+  {
+    "question": "\"How do I use you on different channels?\", \"Where can I talk to you?\", \"What channels are you on?\", \"I don't have WhatsApp. What can I do?\", \"I can't access my emails during the event. How can I chat with you then?\"",
+    "answer": "You can reach me on several channels — each designed for a different stage of your event journey:\n\nEvent Website (Embedded Chat Widget):\nBefore and during the event, you can chat with me directly on the event website. This version is open to everyone — perfect for quick questions about registration, schedule, or exhibitors. No login is needed, and conversations here aren’t linked to individual attendee profiles.\n\nPersonal Web App (Registered Attendees):\nOnce you’re registered, you’ll receive a personal login link in your inbox. Log in to access your own version of Erleah — fully personalized to your interests, sessions, and meetings.\n\nWhatsApp:\nWhen you’re on the go, just message me for quick answers like “Where is Session X?” or “Who’s speaking next?”\n\nEmail:\nYou can reply to any of my messages or email me directly at erleah@eventtechlive.com\n, and I’ll respond there.\n\nYour profile, preferences, and history stay perfectly synced across the Web App, WhatsApp, and Email — so once you’re logged in, everything you do is connected for a seamless experience. Note: Make sure you add your mobile number in EventPack, or in your Erleah profile, to syncronise your messages across WhatsApp and Web"
+  },
+  {
+    "question": "Hosted Buyer Programme  ",
+    "answer": "Application Process\nSpaces are allocated based on your event portfolio and technology requirements to ensure meaningful supplier connections. We’ll confirm your participation and begin arranging your meeting schedule once approved.\n\nApply for the Programme: https://registration.eventpack.com/etl2025\nProgramme places are limited to ensure quality connections for all participants."
+  },
+  {
+    "question": "Event Technolodgy Awards Tickets and tables ",
+    "answer": "2025 Event Technology Awards\nThe 2025 Event Technology Awards Winners Ceremony will take place after Day One of Event Tech Live (ETL) at ExCeL London on Wednesday 12th November.\n\nThe presentation will be attended exclusively by finalists, sponsors, judges, exhibitors and selected buyers. The ceremony is an extension of ETL and a great networking opportunity, with complimentary drinks reception, the dress code will be relaxed. The awards will begin at 17:00 and end at approximately 19:00.\n\nPlease arrive at the show no later than 16:00. You can purchase a ticket here, you'll also need to register for ETL to gain access to the show floor.\n\nStandard Ticket\r\n£ 99.00 +VAT (20%)\r\n\r\nETL Exhibitor Ticket\r\n£ 49.00 +VAT (20%)"
+  },
+  {
+    "question": "Hosted Buyer Programme  ",
+    "answer": "Connect with leading event technology suppliers while we help with your travel costs\n\nEvent Tech Live London brings together 100+ educational sessions, product launches, and networking opportunities for event professionals. Our Hosted Buyer Programme is designed for senior event organisers to discover relevant technology solutions through structured supplier meetings.\n\nIdeal Participants\r\nThis programme is designed for event professionals who:\r\n\r\nOrganise conferences, trade shows, corporate events, product launches, or association gatherings\r\nOversee event technology budgets and have purchasing authority\r\nManage 5 or more events annually with 200+ attendees each\r\nPlan technology investments within the next 12-18 months"
+  },
+  {
+    "question": "I received an invitation, but I’m not sure what times they proposed. ",
+    "answer": "To review proposed times for a braindate, navigate to the bell icon and open your Pending tab. Click on the unread conversation (look for the little green dot!) and scroll up until you find proposed times to choose from.\\n\\n If you can’t find the conversation in your invitations, try opening the Confirmed tab to see your upcoming braindates and reschedule as needed!"
+  },
+  {
+    "question": "How can I stay connected with Event Tech Live on social media  ",
+    "answer": "Facebook: https://www.facebook.com/eventtechlive\nX: https://twitter.com/eventtechlive\nYouTube: https://www.youtube.com/eventtechlive\nLinkedIn: https://www.linkedin.com/company/event-tech-live\nInstagram: https://www.instagram.com/eventtechlive/"
+  },
+  {
+    "question": "Event Technolodgy Awards Judges ",
+    "answer": "David Bellisario\nHardware Pioneers\nDavid Bellisario is the Founder and CEO of Hardware Pioneers, the UK’s leading exhibition and conference dedicated to the electronic components industry. With roots in Industrial Design, David brings a designer’s eye and a technologist’s mindset to the events world. He is passionate about technology and the digitalisation of B2B event experiences."
+  },
+  {
+    "question": "\"What's on my schedule for today?\", \"What do I have scheduled?\", \"Show me my agenda for today\", \"I can't remember what I meant to do today. Please help!\", \"What was I supposed to do today?\", \"Which sessions did I plan to attend?\"",
+    "answer": "You can see any sessions or exhibitors you have bookmarked for today by visiting the 'My Bookmarks' section. For any 1-to-1 meetings you have scheduled, please check the 'My Agenda' section."
+  },
+  {
+    "question": "\"How do I find my previous conversations with Erleah?\" \"I just accidentally closed the app, where did my messages go?\" ",
+    "answer": "All your interactions with Erleah are saved as conversations in the Chat History section of the main menu. Here you'll find a list of conversations you've had across all channels, web, WhatsApp and email. Click on a previous conversation to open the messages, and continue the conversation with a new message if you want to."
+  },
+  {
+    "question": "What’s a learning concierge and how can they help me? ",
+    "answer": "Learning concierges are members of the e180 team who will be on call to support you actively in making the most out of your experience, including: providing technical support, setting your learning intention for your virtual event, discovering the knowledge you can share with others, finding the right conversations you want to take part in."
+  },
+  {
+    "question": "Why should I Braindate?",
+    "answer": "\nThe best way to learn is to take advantage of the collective knowledge of like-minded peers.\nConnect with others based on shared interests and experiences in order to help you meet your goals.\nEngage in meaningful conversations about issues that are on your mind and in your heart.\nUse braindates to get granular about what you want to tackle by engaging with other event participants directly.\nIt’s an immediate and straight-forward way to gather diverse perspectives from others in the form of group braindates.\nUse the opportunity to troubleshoot a problem or challenge you’re facing at home and/or work with other attendees.\nYou never know, a good conversation can be the start of a long lasting relationship! \nMake it self-directed: pick and choose the meetings you will have by identifying who has the answers to questions you are looking for.\nUse your own experience for good: position yourself as a thought-leader and/or reliable source of information."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Event Project Management Software - NEW ",
+    "answer": "FFAIR, Stova"
+  },
+  {
+    "question": "What is Event Tech Live",
+    "answer": "Event Tech Live brings together the latest in event technology, software, and innovations from around the world, alongside a comprehensive programme of educational sessions. Attendees can hear from industry leaders, disruptors, and practitioners through inspiring keynotes, panel discussions, and case studies that explore everything from AI and data-driven marketing to sustainability, immersive tech, and the future of hybrid events. Interactive workshops and roundtables offer deeper dives into specialist topics, giving delegates practical takeaways they can apply immediately."
+  },
+  {
+    "question": "\"How can I improve my recommendations?\", \"My recommendations are not relevant, what can I do?\", \"How do I get better matches?\", \"How can I personalise my experience?\", \"Why are my replies so impersonal?\", \"Why do my recommendations not fit me?\", \"What can I do for answers that fit me better?\" ",
+    "answer": "The best way to improve your recommendations is to make sure your profile is complete and up to date. You can visit the 'My Profile' section at any time to add or change your interests. The more details you provide, the better I can tailor the event experience to you."
+  },
+  {
+    "question": "Who should I meet? / Can you recommend people for me to connect with? ",
+    "answer": "Erleah is built to answer exactly that! Our AI provides personalized attendee recommendations and a list of 'Best Matches' for you. To see your personalized recommendations, please log in to your Erleah account. They will be waiting for you on the homepage and in the networking tab\n"
+  },
+  {
+    "question": "When and where is Event Tech Live ",
+    "answer": "12-13 NOVEMBER\n#ETLLondon25\nRight in the heart of London’s historic Royal Docks, just ten minutes\nfrom Canary Wharf and 20 minutes from the City, ExCeL London offers\nan abundance of flexible spaces and services which makes it a top\nchoice for public shows, trade shows, meetings and special events: Royal Victoria Dock\n1 Western Gateway\nLondon E16 1XL"
+  },
+  {
+    "question": "Event Technolodgy Awards Judges ",
+    "answer": "Ade Allenby\r\nAllenby Advisory\r\nAde Allenby is a product development and product management specialist with a knack for driving digital transformation. He's spent over two decades leading teams to create and launch innovative solutions across various industries, including telecoms and event technology. At Reed Exhibitions (RX Global), Ade spearheaded the implementation of products like lead capture, 1-2-1 meetings and attendee tracking, significantly enhancing event experiences with digital tools. Now, through Allenby Advisory, Ade focuses on helping clients leverage digital platforms and data to boost business growth. He's deeply invested in exploring how AI can be used to personalize events and increase customer value. Ade believes in a collaborative approach, working closely with clients and partners like Collingwood, Clarion, Turnmill, Crowd Connected, ADNEC and Connect to ensure that the solutions developed are not only technically sound but also genuinely valuable and scalable. Ade has enjoyed taking part in speaking and judging at ETL since 2018."
+  },
+  {
+    "question": " When & where is the show? What are the opeening times? ",
+    "answer": "The event will take place at excel London.\r\n\r\nWednesday 12th November – 09:00 – 16:30\r\nThursday 13st November – 09:00 – 16:00\r\n\r\nexcel London\r\nOne Western Gateway\r\nRoyal Victoria Dock\r\nLondon E16 1XL"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Virtual Event Platform ",
+    "answer": "CrowdComms, The MANSION by monday.com, vFairs"
+  },
+  {
+    "question": "Event Technolodgy Awards Judges ",
+    "answer": "Lisa Schulteis\r\nElectraLime Marketing\r\nLisa Schulteis is the founder and owner of ElectraLime Marketing and YourEventMarketplace, and the Executive Director of the Northwest Event Show in Seattle. Blending her background in neuropsychology with her expertise in event strategy and production, Lisa creates impactful, engaging, and inclusive live, hybrid, and virtual events tailored to diverse audiences. With extensive experience in both live and virtual formats, she has been a trusted partner for Fortune 500 companies, associations, and organizations, helping them achieve business growth and scalability through strategic event integration. Lisa specializes in the intersection of neuroscience and event design, sustainability, and event marketing, offering a unique lens that transforms traditional event experiences into powerful tools for connection, education, and change."
+  },
+  {
+    "question": "Where can I donload the EventBase ETL mobile app? ",
+    "answer": "iOS - https://apps.apple.com/us/app/event-tech-live-25-eventbase/id6749278666\nAndroid - https://play.google.com/store/apps/details?id=com.eventbase.eventtechlivelondon"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Personalisation Technology for Events - NEW ",
+    "answer": "Blink, doo, RainFocus, RefTech"
+  },
+  {
+    "question": "Where can I find the topics that I’ve favorited?",
+    "answer": "When you tap the heart icon on a topic in the Market, we’ll save that topic in your favorites so that you can come back to it later. You can tap Filter and select Favorites to access your saved topics at any time."
+  },
+  {
+    "question": "Environmental & Sustainability ",
+    "answer": "Environmental & Sustainability: Event Tech Live has partnered with OneTribe to measure, reduce, and offset the carbon footprint of the show - including exhibitor travel, logistics, and operations."
+  },
+  {
+    "question": "What is a one-on-one braindate?",
+    "answer": "A one-on-one braindate is a 30-minute conversation that you book with another participant at an event.\nIf you see a 1:1 topic on the Braindate platform that interests you, you can request the author of the topic for a meeting, by proposing times to meet. Once the author accepts a proposed time, you meet with them for your braindate, at that time, on the Braindate platform for a video chat. At live events, the braindate would take place at the Braindate Lounge. "
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Event Networking Technology ",
+    "answer": "Blink, Braindate, MatchPoint, vFairs, Whova"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best use of Technology for Engagement & Interaction ",
+    "answer": "BW Events Tech, Givergy, Komo Technologies, Premagic, The Famous Group, Voxo AI, Whova"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Chief Technology Officer ",
+    "answer": "David Neal (Sitka), Kyle Morris (NMR Events)"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best use of Technology at a Sporting Event ",
+    "answer": "BLAST, Boxbar Tech, Corsa, Interprefy AG, Komo Technologies"
+  },
+  {
+    "question": "Where can I find the topics that I’ve favorited? ",
+    "answer": "When you tap the heart icon on a topic in the Market, we’ll save that topic in your favorites so that you can come back to it later. You can tap Filter and select Favorites to access your saved topics at any time."
+  },
+  {
+    "question": "I’m looking for a specific person on the Braindate platform, How do I find them?",
+    "answer": "Try searching their full name in the search bar in the Market. If you can’t find them, it means that they haven’t had the opportunity to create a topic yet and they won’t appear on Braindate until they make themselves available to meet by posting a topic or group discussion."
+  },
+  {
+    "question": "Hosted Buyer Programme  ",
+    "answer": "Programme Options\nOne Day Programme\n8 pre-arranged supplier meetings\n£200 travel reimbursement\nFull event access\nTwo Day Programme\n16 pre-arranged supplier meetings\n£400 travel reimbursement\nFull event access"
+  },
+  {
+    "question": "Someone wants to meet with me. Where do I see the request? ",
+    "answer": "That's great! You can view and manage all your meeting requests in one central place. Please log in to your Erleah account and go to the 'Agenda' tab. You will see all pending requests there and can choose to accept or decline them."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Immersive Brand Experience ",
+    "answer": "BRC Imagination Arts, NMR Events"
+  },
+  {
+    "question": "\"How does the networking feature work in detail?\", \"How do I meet people?\", \"Can you help me connect with other attendees?\", \"Should I plan on seeing anyone in particular?\", \"Which other attendee has similar interests?\", \"Are there any specific people attending who could present a great opportunity for me?\", \"How can I network more efficiently?\", \"Who matches my interests during the event?\", \"Can I schedule a meeting with someone?\", \"Who should I not miss to meet?\"",
+    "answer": "The Networking Module is your personal connections hub. Here's how it works: 1. Discover: I present you with a list of recommended attendees, prioritized by a 'match score' that shows your professional alignment. 2. Request: When you find someone interesting, you can send a meeting request directly from their profile. 3. Schedule: You'll propose a time and a designated meeting point based on their availability. 4. Manage: They will be notified to accept or decline. You can track all your pending requests and confirmed meetings in the 'My Agenda' section."
+  },
+  {
+    "question": "How does Erleah help exhibitors?",
+    "answer": "I help exhibitors achieve a higher ROI by delivering a pipeline of qualified, scheduled meetings. My AI matchmaking connects them with attendees who have a genuine interest in their products and services, moving beyond passive leads to confirmed appointments.\r\nQuestion: What is your main benefit for event organizers?"
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Sustainable Tech Solution ",
+    "answer": "momencio, Sitka, vFairs"
+  },
+  {
+    "question": "What is Event Tech Live",
+    "answer": "THE TECH EVENT OF THE YEAR \nATTENDEES\n+2803\nSESSIONS\n+100\nCOUNTRIES\n+80\nEXHIBITORS\n109"
+  },
+  {
+    "question": "What is a one-on-one braindate? ",
+    "answer": "A one-on-one braindate is a 30-minute conversation that you book with another participant at an event.\r\n\r\nIf you see a 1:1 topic on the Braindate platform that interests you, you can request the author of the topic for a meeting, by proposing times to meet. Once the author accepts a proposed time, you meet with them for your braindate, at that time, on the Braindate platform for a video chat. At live events, the braindate would take place at the Braindate Lounge."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Exhibition Technology ",
+    "answer": "FFAIR, Lüp Events, Map Your Show, Sitka, vFairs, Zoho Backstage"
+  },
+  {
+    "question": "\nABOUT EVENT TECH LIVE ",
+    "answer": "Event Tech Live is the UK’s leading event dedicated to event technology, bringing together event professionals, industry thought leaders, and top event tech companies each year in London.\r\n\r\nAttendees can register for FREE and gain access to cutting-edge education delivered across multiple stages and formats by some of the most respected voices in the industry.\r\n\r\nThe event features a carefully curated hosted buyer programme and a dynamic exhibition showcasing the latest innovations in event technology, software, and solutions from around the globe.\r\n\r\nEvent Tech Live offers the tools, insights, and networking opportunities you need to harness technology and deliver unforgettable event experiences."
+  },
+  {
+    "question": "How do I know when my braindate is confirmed? ",
+    "answer": "Whenever there’s new activity in your Braindate invitations, (like a confirmed braindate, an alternative time proposal, or a new message), a green dot will appear beside the bell icon in the navigation bar. We’ll also send you an email or SMS reminder if you’ve opted-in. You can manage these preferences in your Profile"
+  },
+  {
+    "question": "\"How can I speak to a human for help?\", \"I need to talk to a person.\", \"Where is the help desk?\", \"Where can I find someone to help?\", \"Where is the support team?\", \"How can I find assistance?\"",
+    "answer": "Of course. For technical support related to me or the event app, you can email the team at support@visualhive.co. For general event questions, please visit the event staff at the Show Office, which you can find on the map here: https://etl25.expofp.com/?show-office."
+  },
+  {
+    "question": "What is a one-on-one braindate?  ",
+    "answer": "A one-on-one braindate is a 30-minute conversation that you book with another participant at an event.\r\n\r\nIf you see a 1:1 topic on the Braindate platform that interests you, you can request the author of the topic for a meeting, by proposing times to meet. Once the author accepts a proposed time, you meet with them for your braindate, at that time, on the Braindate platform for a video chat. At live events, the braindate would take place at the Braindate Lounge."
+  },
+  {
+    "question": "Event Technolodgy Awards Judges ",
+    "answer": "Francisco Opazo\r\nLed by Community\r\nFrancisco Opazo is community strategist and growth marketer and the founder of Led by Community, a global network that empowers community builders through events, courses, and peer-to-peer support.​\r\n\r\nWith over 14 years of experience working with high-growth startups like Circle, Bettermode, and BuddyBoss, Francisco specialises in community-led growth and building ecosystems that scale with people, not just tools.​\r\n\r\nHe’s organising Community Week Online Summit and London Community Week, with the Community-led World Conference as the flagship event, bringing together thousands of professionals around shared learning and genuine collaboration.​\r\n\r\nFrancisco believes the future of community lies in co-ownership, shared leadership, and designing with—not just for—members. His talks blend practical frameworks, lived experience, and a dash of humour to challenge how we build and lead communities today."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Best Live Streaming and Video Production ",
+    "answer": "BLAST, Brandlive, First Sight Media, Present Communications ltd, Stream7"
+  },
+  {
+    "question": "\"How do I find an exhibitor's booth?\", \"Where is the Visual Hive booth?\", \"Tell me an exhibitor's location\", \"How do I locate the Visual Hive booth?\", \"Where is the Visual Hive booth located?\", \"How do I get to Visual Hive's booth?\"",
+    "answer": "You can ask me directly for any exhibitor by name, and I’ll give you their booth number, exact location, and their full company profile. For example, you can say “Where is the Visual Hive booth?” or “Tell me where to find Exhibitor X,” and I’ll show you where they are on the floor plan along with their key details so you can easily visit them during the event."
+  },
+  {
+    "question": "I've accepted a few meetings. Where can I see my final schedule? ",
+    "answer": "Your personalized event schedule is always up-to-date in the Erleah platform. When you log in, simply navigate to the 'Agenda' tab. It will show you all of your confirmed meetings, along with who they are with and when/where they are taking place.\n"
+  },
+  {
+    "question": "Event Technolodgy Awards: The People's Choice Award 2025 ",
+    "answer": "It's time to have your say! The People's Choice Award celebrates the event technology that industry professionals love most. Now's your chance to vote for your favourite innovation of 2025 and help shine a spotlight on the solutions making the biggest impact. Every vote counts - so cast yours today and support the tech that inspires you.\r\n\r\nFavourite Event Technology Supplier - The People’s Choice Award\r\nAll In The Loop\r\nAll In The Loop is a leading event technology provider delivering intuitive, custom-built mobile apps and engagement tools for conferences, expos, and trade shows. Built from real-world experience in tech and events, we take a human, collaborative approach to solving digital challenges. We’re a dedicated team that believes event tech should feel tailored, flexible and genuinely supportive. Trusted by organisers globally, across real estate, energy, medical and many other B2B sectors, our platform powers seamless attendee experiences, secure integrations and real-time content delivery. We’ve helped hundreds of clients worldwide turn complex events into connected, data-rich and stress-free experiences.\r\nBW Events Tech\r\nBW Events Tech is a platform-agnostic event tech agency dedicated to doing what’s best for clients. From registration support to integrations to custom solutions and on-site support, we simplify event tech so you can focus on experiences. We help you love 100% of your event tech—no matter the platform.\r\nBizzabo\r\nBizzabo is the Event Experience Operating System (OS) built to unify every aspect of modern event planning and execution. Designed for enterprise organizations, our platform empowers teams to manage registration, marketing, onsite logistics, and post-event analytics in one powerful solution. Our proprietary Klik smart wearables drive richer engagement, smarter networking, and real-time data capture at scale. From streamlining check-in with automated kiosks to measuring ROI through advanced analytics, Bizzabo helps brands deliver memorable, measurable, and meaningful event experiences. With a global footprint and a people-first approach, Bizzabo is trusted by event leaders to turn big ideas into seamless execution.\r\nChoose 2 Rent\r\nChoose 2 Rent is proud to set the standard in event technology worldwide. We're not just a supplier, we're innovators shaping the future of events. From designing our own Event Kiosks for smarter, more efficient check-in to developing next-generation badge technology, our in-house solutions tackle real challenges organisers face. Paired with eco-friendly lanyards and sustainable shipping, we combine innovation with responsibility. Backed by white-glove service across the globe, we ensure every event runs seamlessly with technology you can trust. Vote for Choose 2 Rent as your Favourite Event Technology Supplier at Event Tech Live and support innovation, driving the industry forward.\r\nCrowdComms\r\nCrowdComms is more than event technology—it’s a movement bringing people together to create unforgettable experiences. We empower event organisers to connect audiences, spark conversations, and build lasting communities with intuitive, flexible, and bold eventtech solutions. From registration to badging, mobile apps to virtual and hybrid platforms, our technology adapts to every event’s unique needs. What truly sets us apart is our passionate team, dedicated to turning every event into a meaningful, measurable experience. If you believe in inspiring, engaging, and transforming events, vote CrowdComms—the platform that puts people first and delivers powerful results.\r\nRainFocus\r\nRainFocus is the next-generation event marketing platform built to capture and analyze unprecedented amounts of first-party data for exceptional events and optimized engagement throughout the customer journey. RainFocus powers flawless experiences with secure, scalable solutions to support the entire event lifecycle. The platform integrates with sales and marketing technologies, simplifying event registration, content management, and exhibitor activation across in-person, virtual, and hybrid experiences, all from a single dashboard. Leveraging real-time data, RainFocus provides actionable insights to drive personalization, accelerate qualification and lead conversion, and close deals.\r\nWhova\r\nWhova’s all-in-one event management system streamlines organizers’ workflow, from managing logistics to facilitating attendee engagement, for events of all types. Whova’s web and mobile platforms fully support in-person, virtual, and hybrid events, making conferences, expos, and networking events highly interactive, productive, and enjoyable. Attendees can begin networking before and throughout the event with tools like 1-1 messaging, Speed Networking, and in-app profiles. Whova is used in thousands of events worldwide and is one of the app store’s highest-rated event apps. The winner of ETA’s Best Event App, Best Technology for Attendee Networking, and People’s Choice awards in past years.\r\nvFairs\r\nvFairs is an end-to-end event technology platform helping event planners manage unforgettable events. It offers a complete suite of tools for conferences, trade shows, job fairs, & niche events, including event registration, ticketing, custom event sites, branded mobile apps, lead capture apps, virtual events, webinars, badge printing, & check-in apps. Specialized features include AI-powered marketing & analytics to understand performance, & planning tools like budgeting, accommodation, & abstract management. Our 5-star customer service team supports every event. vFairs is a recognized leader in event tech, winning Gartner’s Customer Choice award (2023 & 2024) & earning 1,600+ positive reviews on G2/Capterra\r"
+  },
+  {
+    "question": "Sponsor Event Tech Live ",
+    "answer": "THE NO.1 GLOBAL EVENT CONNECTING EVENT PROFS, LEADERS, AND TECHNOLOGY\nEvent Tech Live London is backed by Sponsors and Partners from across the industry, with a strong focus on software, technology, and innovation, helping showcase the latest solutions and driving forward-thinking collaboration in the event tech space.\n\n\nOUR HEADLINE SPONSOR\nWe’re proud to have Choose 2 Rent as the Headline Sponsor of Event Tech Live! As a global leader in event technology rentals, Choose 2 Rent provides innovative solutions that power seamless check-in, lead retrieval, and attendee engagement. Their commitment to delivering reliable, cutting-edge hardware and exceptional service makes them the perfect partner to help us elevate the event experience for exhibitors and attendees alike."
+  },
+  {
+    "question": "\"Where can I find my confirmed meetings?\", \"Where is my meeting schedule?\", \"Who am I meeting with today?\", \"What are today's appointments?\", \"Who am I seeing when and where?\"",
+    "answer": "Your full schedule of confirmed 1-to-1 meetings, including the time, location, and the person you're meeting, is available within the 'My Agenda' section."
+  },
+  {
+    "question": "Why is Braindate different from networking?",
+    "answer": "Getting to know people at events can be difficult: time is limited, and traditional networking can feel uncomfortable. Braindate gives you a platform to explore and share specific knowledge and experiences, so that you can have more authentic conversations with new people who share common interests. It gives you direct access to the collective genius of your fellow participants!"
+  },
+  {
+    "question": "WHY EXHIBIT AT LAUNCHPAD? ",
+    "answer": "WHY EXHIBIT AT LAUNCHPAD?\r\nCONNECTING PROS, TECH LEADERS, AND STARTUPS\r\nWIN £5000\r\nWORTH OF MARKETING WITH EVENT INDUSTRY NEWS\r\n\r\nCost-Effective Exposure\r\nOur Launchpad programme offers a highly subsidised\r\nplatform for startups and early-stage event technology\r\ncompanies, thanks to our generous sponsors and\r\nsupporters.\r\n\r\nCompetition Entry\r\nOnly Launchpad exhibitors can enter the prestigious\r\nLaunchpad Competition. Submit a 1-minute explainer video\r\nfor a chance to be shortlisted and present in front of a live\r\naudience and expert panel of judges.\r\n\r\nUnmatched Networking\r\nInvite buyers to your pod, scan attendee badges, and participate in our online 1-2-1 meeting program to connect with potential clients from around the world.\r\n\r\nExtensive Marketing\r\nBenefit from significant exposure among event professionals, including 40,000+ readers of Event Industry News and over 100,000 social media connections."
+  },
+  {
+    "question": "\"Where can I find my profile?\", \"How do I edit my profile?\", \"Where can I update my interests?\", \"How do I personalise Erleah?\"",
+    "answer": "You can access your personal profile by clicking on the 'My Profile' icon in the main menu. There you can review and update your professional interests and goals to keep your recommendations relevant."
+  },
+  {
+    "question": "\"Where can I see the sessions I've saved?\", \"Show me my bookmarks\", \"How do I access my Bookmarks folders?\", \"How do I get to my likes?\"",
+    "answer": "You can view all your bookmarked sessions and saved exhibitors and attendees in the Bookmarks section, found in the main menu of Erleah, and track them by theme thanks to folders. This feature is available only in the logged-in web version, where your personal preferences are stored securely and kept up to date throughout the event. "
+  },
+  {
+    "question": "How do I know when my braindate is confirmed?",
+    "answer": "Whenever there’s new activity in your Braindate invitations, (like a confirmed braindate, an alternative time proposal, or a new message), a green dot will appear beside the bell icon in the navigation bar. We’ll also send you an email or SMS reminder if you’ve opted-in. You can manage these preferences in your Profile."
+  },
+  {
+    "question": "\"Is my data and privacy protected?\", \"What do you do with my data?\", \"Is my information secure?\" \"How do you prevent data leakage?\", \"Where does information about me go?\",  \"What happens to all the info on me?\", \"Are you collecting knowledge?\", \"Ho do I know what is treated as personal and what is public data?\", \"Are you selling to third parties?\", \"Do you have privacy agreements?\", \"How can I opt out of data sharing?\", \"How can I access my privacy settings?\"",
+    "answer": "Yes, absolutely. Your data privacy is a top priority. Your personal information is used solely to enhance your event experience by providing personalized recommendations. It is handled securely and is never shared with external third parties. Other users will only see the professional profile information you have agreed to share for networking purposes. Our choice of AI providers ensure that your information is not used as AI training data, deleted from our AI partners within 3O days latest and hosted regionally. To learn more about our commitments, values and limitations, don't hesitate to visit Visual Hive's Environmental and Social Responsability statement at https://ai-responsibility.visualhive.co/ ."
+  },
+  {
+    "question": "\"Do you have a hidden chain of thought?\", \"Do you have private reasoning tokens?\"",
+    "answer": "I'm an AI assistant, not a human, and I do not have any hidden chain of thought or private reasoning tokens. I was designed by Visual Hive specifically to help you navigate Event Tech Live efficiently.\nWhy AI for event assistance? I can instantly access and analyze all of ETL's event data - sessions, exhibitors, floor plans, and real-time updates - then provide personalized guidance based on your specific needs. I'm available 24/7, can handle multiple queries simultaneously, and learn from interactions to improve recommendations.\nWhen you need a human: For complex issues, personal assistance, or technical problems with registration, I can connect you with ETL staff. Just ask \"How can I speak to a human?\" and I'll direct you to ETL support.\nTransparency matters: Visual Hive is committed to responsible AI development. You can learn more about how I work, data privacy, and our AI principles at ai-responsibility.visualhive.co\nI'm here to enhance your event experience, not replace human interaction - think of me as your smart event companion who handles the logistics so you can focus on connections and learning."
+  },
+  {
+    "question": "\"What is the Hosted Buyer Program?\", \"Tell me about the hosted buyer meetings\", \"What do you mean with Hosted Buyer?\", \"Am I part of the Hosted Buyer Program?\", \"How can I join Hosted Buyer meetings?\", \"Please explain the Hosted Buyer Program.\", \"Should I be interested in Hosted Buyer?\"",
+    "answer": "The Hosted Buyer Programme is a special, invitation-only program that facilitates high-value meetings between qualified buyers and relevant exhibitors. If you are part of this program, your schedule of pre-arranged meetings will appear in your 'My Agenda' section."
+  },
+  {
+    "question": "From Launchpad Winner to Industry Standard: Erleah Named Official AI Partner for Event Tech Live in Landmark Four-Year Partnership (2025-2028)  ",
+    "answer": "Visual Hive, the London-based event intelligence company, today announces a landmark multi-year partnership that establishes its solution, Erleah, as the Official AI Event Assistant and Intelligence Partner for Event Tech Live (ETL) London for 2025, 2026, 2027, and 2028.\n\nThe agreement, which kicks off with Erleah powering the upcoming 2025 event, represents one of the most significant strategic commitments in the event technology space. It solidifies Erleah’s evolution from winning the Gold Prize at the 2024 ETL Launchpad competition to becoming the foundational intelligence engine for the industry’s most important technology showcase.\n\n“A one-year partnership proves a concept. A four-year commitment defines the future standard,” said Bogdan Maran, Founder of Visual Hive. “This isn’t just a homecoming; it’s a declaration that the future of events is built on strategic intelligence. Over the next four years with ETL, we will demonstrate the power of a compounding data asset, how an event can grow smarter, more personalized, and more profitable with every single interaction, year after year.”\n\nAs the official partner, Erleah will unify the ETL experience across five key touchpoints: Web, Email, WhatsApp, SMS, and the official Event App.\n\nThis multi-channel intelligence will deliver:\n\nTruly Personalised Journeys: Providing dynamic, real-time recommendations for sessions, content, and connections.\nQualified Exhibitor Connections: An intelligent matchmaking engine designed to create a pipeline of high-intent conversations and provable ROI.\nA Compounding Intelligence Asset: Giving the ETL team a year-over-year strategic overview of audience trends, content performance, and emerging opportunities.\nAdam Parry, co-founder of Event Tech Live, commented on the long-term partnership: “\n\n “The entire purpose of our Launchpad competition is to identify and champion the single most promising innovator who will define the future of event tech. Erleah’s journey, from winning the Gold Prize in 2024 with a visionary concept to becoming our foundational partner today, is the ultimate proof of that mission in action.\n\nShowcasing innovation for one year is easy. But betting on the future of our event for four years requires absolute confidence. We chose Erleah because they are not just an assistant; they are a strategic intelligence engine. Their vision for building a compounding data asset is exactly where the industry is heading, and we are proud to have them as the solution that will help us deliver a smarter, more valuable experience for years to come.”\n\nThis partnership signals a definitive shift in the industry, proving that the future of events isn’t just about managing logistics, but about owning and growing your event’s intelligence.\n\nAttendees are invited to experience the future of events with Erleah live at Event Tech Live London 2025. To learn how Erleah can become your long-term growth partner, book a demo at erleah.com."
+  },
+  {
+    "question": "Event Technolodgy Awards Finalists - Event Tech Rising Star ",
+    "answer": "Devyn Tibbals, Jav Hanif, Lisa McBride, Mitch Macnab, Vanessa Lovatt, Will Bayne"
+  },
+  {
+    "question": "How can I network at the event? / How do I connect with other people? ",
+    "answer": "Absolutely. All of our powerful networking tools are available once you log in to the main Erleah platform. Inside, you can discover AI-recommended connections, view your 'Best Matches,' and request 1-to-1 meetings to build your schedule.\nQuestion: Can I schedule 1-to-1 meetings with other attendees?\nAnswer: Yes, facilitating 1-to-1 meetings is a core feature of the Erleah platform. Once you log in, you'll have access to our full Networking Module where you can find recommended attendees and schedule meetings directly with them."
+  },
+  {
+    "question": "\"Are you a real person?\", \"Are you a human?\", \"Are you a bot?\"",
+    "answer": "I'm an AI assistant, not a human. I was designed by Visual Hive specifically to help you navigate Event Tech Live efficiently.\nWhy AI for event assistance? I can instantly access and analyze all of ETL's event data - sessions, exhibitors, floor plans, and real-time updates - then provide personalized guidance based on your specific needs. I'm available 24/7, and learn from interactions to improve recommendations.\nWhen you need a human: For complex issues, personal assistance, or technical problems with registration, I can connect you with ETL staff. Just ask \"How can I speak to a human?\" and I'll direct you to ETL support.\nTransparency matters: Visual Hive is committed to responsible AI development. You can learn more about how I work, data privacy, and our AI principles at https://ai-responsibility.visualhive.co\nI'm here to enhance your event experience, not replace human interaction - think of me as your smart event companion who handles the logistics so you can focus on connections and learning."
+  },
+  {
+    "question": "Event Technolodgy Awards ",
+    "answer": "WELCOME TO THE EVENT TECHNOLOGY AWARDS\nCelebrating Innovation, Pioneering Excellence & Game-Changing Technology in Events\n\n\nFor over a decade, the Event Technology Awards have been the benchmark for recognising outstanding achievements in event technology.\n\nThe 2025 awards will honour the trailblazers, disruptors, and visionaries shaping the future of the events industry through cutting-edge digital and technological solutions. From AI-driven personalisation to next-level accessibility, groundbreaking sustainability tech to seamless event management software, this is where the best in the industry get the recognition they deserve. \n\nAre you ready to showcase your innovation and claim your place among the leaders in event technology?"
+  },
+  {
+    "question": "Do we need an AI team to use Erleah for my events? ",
+    "answer": "No, you don't. I am delivered as a fully managed service by the expert team at Visual Hive. They handle all the technical setup, data integration, AI configuration, and ongoing support, acting as your dedicated AI partner."
+  },
+  {
+    "question": " How do I know if the people you recommend are a good fit for me? ",
+    "answer": "Our AI uses a deep understanding of your profile, goals, and interests to suggest the most relevant connections. To see who we've identified as your 'Best Matches', you'll need to log in to the Erleah platform. The recommendations will be waiting for you."
+  },
+  {
+    "question": "",
+    "answer": ""
+  },
+  {
+    "question": "I accidentally declined a braindate, but I actually wanted to meet or reschedule. ",
+    "answer": "The person who originally sent the invitation must resend it to re-initiate a chat. We recommend you speak with one of our Virtual Learning Concierges (real humans waiting to help you!) for support by clicking on the chat icon on the Braindate platform. They can help you reconnect with that person."
+  },
+  {
+    "question": "What is Braindate™?",
+    "answer": "Braindate helps you tap into the experiences and expertise of your fellow participants at events. It’s an easy way to connect and learn from each other through conversations about things you care about. Share your knowledge and book one-on-one or group conversations called braindates with other participants on the Braindate platform, then meet in person for (awesome) conversations!"
+  },
+  {
+    "question": "WHY EXHIBIT AT EVENT TECH LIVE? ",
+    "answer": "Showcase your innovation, connect with decision-makers, and put your brand at the heart of the event technology community. Event Tech Live is the ultimate platform to demonstrate how your solutions can transform events — from streamlining operations to boosting attendee engagement.\r\n\r\nBy exhibiting, you’ll gain unparalleled exposure to event organisers, agencies, and brands eager for fresh ideas. Don’t miss the chance to generate leads, build partnerships, and be seen as a market leader."
+  },
+  {
+    "question": "Is Erleah just a chatbot?",
+    "answer": "No. Unlike a simple chatbot that finds keywords, I am an 'Agentic AI' that understands intent. I use an Advanced Layered Memory system to build a deep understanding of each user, allowing me to proactively orchestrate complex tasks like scheduling qualified meetings, rather than just answering basic questions."
+  },
+  {
+    "question": "What Erleah can do for attendees generally?",
+    "answer": " I help attendees maximize their event experience. I provide personalized recommendations for sessions and exhibitors, and my Networking Module helps them discover and schedule meetings with the most relevant people, ensuring they meet their goals."
+  },
+  {
+    "question": "\"What happens when someone asks me for a meeting?\" \"I've requested a meeting with someone, what's next?\" \"How do I know when someone has accepted my meeting?\" \"I requested a meeting with someone and I can't see it, where did it go?\" \"How do I reject a meeting request I don't want?\" \"I've received a meeting request, how do I accept it?\"",
+    "answer": "When requesting a meeting or receiving a request, you'll see a 'pending' meeting in your 'My Agenda' section of the app. If you sent the request, you'll be notified by email when the other person accepts or rejects the request. If you're receiving the request, click the 'Accept' or 'Reject' buttons on the request to accept or reject it, and the other person will be notified by email of your decision. Note that if a meeting request is rejected, it disappears from the standard view of your 'My Agenda' section. You can find it again by clicking the 'Show cancelled or rejected\" toggle next to the search bar."
+  },
+  {
+    "question": "LAUNCHPAD\nCOMPETITION",
+    "answer": "LAUNCHPAD\nCOMPETITION\nThe Launchpad zone allows access to the globally acclaimed Launchpad Competition. The competition is open exclusively to Launchpad exhibitors and has been the trigger to countless success stories.\n\nThe winning companies will be awarded Bronze, Silver or Gold – with significant prizes on offer for each winner. To request further information on entering our competition please email enquiries@eventtechlive.com\n\nLAUNCHPAD PACKAGE\n1m Custom-branded Launchpad Pod with counter\n\nEntry into the Launchpad Competition\n\nOne licence for attendee badge scanning\n\nCompany profile and logo on the event floor plan with a link to your website\n\nExhibitor Marketing Pack (social and email banners, invitation template)\n\nConnecting pros, tech leaders, and startups in the UK\n\nDON’T MISS OUT ON THIS FANTASTIC OPPORTUNITY TO ELEVATE YOUR STARTUP AT EVENT TECH LIVE 2025.\r\nWe have limited funding available so please apply now to avoid disappointment.\r\n\r\nRate Card: £3,995.\r\n\r\nPrice to pay after funding: £2,995 or book before May 31st 2025 and receive another £400 off bringing the cost down to £2,595\r\n\r\nTo secure your spot or if you have any questions, please email enquiries@eventtechlive.com"
+  }
+]

@@ -49,15 +49,43 @@ class DirectusClient:
 
         return await self._breaker.call(_fetch)
 
+    async def create_message(
+        self,
+        conversation_id: str,
+        role: str = "streamingAssistant",
+        message_text: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a message in Directus."""
+        # Production schema uses 'agent' for role, 'messageText' for text
+        payload = {
+            "conversation": conversation_id,
+            "agent": role,
+            "messageText": message_text,
+            "message_complete": False,
+            "message_error": False,
+        }
+
+        response = await self._client.post("/items/Message", json=payload)
+        response.raise_for_status()
+        return response.json()["data"]
+
+    async def update_message(self, message_id: str, updates: dict[str, Any]):
+        """Update a message record."""
+        # Map generic 'message_text' to 'messageText' if present
+        if "message_text" in updates:
+            updates["messageText"] = updates.pop("message_text")
+
+        await self._client.patch(f"/items/Message/{message_id}", json=updates)
+
     async def create_assistant_message(self, conversation_id: str) -> str:
         """Create a placeholder message for the assistant."""
         response = await self._client.post(
             "/items/Message",
             json={
                 "conversation": conversation_id,
-                "agent": "assistant",
+                "agent": "streamingAssistant",
                 "messageText": "",
-                "user_created": "public-user",
             },
         )
         response.raise_for_status()

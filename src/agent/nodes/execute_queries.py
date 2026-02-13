@@ -16,16 +16,11 @@ logger = structlog.get_logger()
 
 @graceful_node("execute_queries", critical=False)
 async def execute_queries(state: AssistantState) -> dict:
-    """Execute all planned queries in parallel using hybrid_search.
-
-    Each query maps directly to a hybrid_search call.
-    Results are grouped by table name.
-    """
+    """Execute all planned queries in parallel using hybrid_search."""
     logger.info("===== NODE 5: EXECUTE QUERIES =====")
     planned = state.get("planned_queries", [])
     user_context = state.get("user_context", {})
     conference_id = user_context.get("conference_id", "")
-    user_id = user_context.get("user_id", "")
 
     # Check simulation flags
     sim = get_simulation_registry()
@@ -40,50 +35,57 @@ async def execute_queries(state: AssistantState) -> dict:
         logger.info("  [execute_queries] SKIPPED — no planned queries")
         return {"query_results": {}, "current_node": "execute_queries"}
 
-    logger.info(
-        "  [execute_queries] Executing %d queries in parallel...",
-        len(planned),
+    unique_texts = list(
+        set(q.get("query_text", "") for q in planned if q.get("query_text"))
     )
-    for i, q in enumerate(planned):
-        logger.info(
-            "  [execute_queries] Query %d: table=%s mode=%s text='%s' limit=%d",
-            i + 1,
-            q.get("table", "?"),
-            q.get("search_mode", "?"),
-            str(q.get("query_text", ""))[:100],
-            q.get("limit", 10),
-        )
 
-    cache = get_cache_service()
+    query_mode = state.get("query_mode", "hybrid")
 
+    # ---------------------------------------------------------
+    # BUSINESS LOGIC: Define distinct thresholds for distinct tools
+    # ---------------------------------------------------------
+    if query_mode == "specific":
+        # Master Search (Cosine Similarity): 0.15 is sensitive enough for name lookups
+        threshold = 0.15
+    else:
+        # Faceted Search (Composite Score 0-10): 3.0 requires meaningful matches
+        threshold = 3.0
+
+    logger.info(
+        "  [execute_queries] Intent-based threshold active",
+        query_mode=query_mode,
+        threshold=threshold,
+    )
+
+    # 2. Batch embed
+    from src.services.embedding import get_embedding_service
+
+    embedding_service = get_embedding_service()
+
+    text_to_vector = {}
+    if unique_texts:
+        vectors = await embedding_service.embed_batch(unique_texts)
+        text_to_vector = dict(zip(unique_texts, vectors))
+
+    # 3. Execute searches in parallel
     async def _run_query(q: dict) -> tuple[str, list]:
         table = q.get("table", "sessions")
         search_mode = q.get("search_mode", "faceted")
         query_text = q.get("query_text", "")
         limit = q.get("limit", 10)
-        use_faceted = search_mode == "faceted"
 
-        # Cache query results (skip user-specific/profile queries)
-        is_cacheable = not user_id or search_mode != "profile"
-        cache_key = make_key(
-            "query", table, query_text, search_mode, str(limit), conference_id
-        )
+        # Architecture choice: If specific, force Master Search.
+        # Faceted search is for recommendations, not lookups.
+        use_faceted = (search_mode == "faceted") and (query_mode != "specific")
 
-        if is_cacheable:
-            cached = await cache.get(cache_key)
-            if cached is not None:
-                logger.info(
-                    "  [execute_queries] Cache HIT for %s query: '%s'",
-                    table,
-                    query_text[:50],
-                )
-                return table, cached
+        vector = text_to_vector.get(query_text)
 
         try:
             logger.info(
-                "  [execute_queries] Searching Qdrant: table=%s faceted=%s query='%s'",
+                "  [execute_queries] Searching Qdrant: table=%s faceted=%s mode=%s query='%s'",
                 table,
                 use_faceted,
+                query_mode,
                 query_text[:80],
             )
             results = await hybrid_search(
@@ -92,30 +94,27 @@ async def execute_queries(state: AssistantState) -> dict:
                 conference_id=conference_id,
                 use_faceted=use_faceted,
                 limit=limit,
+                query_vector=vector,
+                score_threshold=None,  # We filter composite/raw manually below for precision
             )
-            # Convert SearchResult dataclasses to dicts for serialization
-            result_dicts = [asdict(r) for r in results]
+
+            # ---------------------------------------------------------
+            # MANUAL FILTERING: Apply the correct scale for the tool used
+            # ---------------------------------------------------------
+            filtered_results = []
+            for r in results:
+                # If we used Master search, total_score is 0.0-1.0
+                # If we used Faceted search, total_score is 0.0-10.0
+                if r.total_score >= threshold:
+                    filtered_results.append(asdict(r))
+
             logger.info(
-                "  [execute_queries] Results for %s: %d matches found",
+                "  [execute_queries] Results for %s: %d matches found (after threshold %.2f)",
                 table,
-                len(result_dicts),
+                len(filtered_results),
+                threshold,
             )
-            for j, r in enumerate(result_dicts[:5]):
-                display_name = extract_display_name(
-                    r.get("payload", {}).get("name"),
-                    r.get("payload", {}).get("description", ""),
-                    r.get("entity_id", "?")[:12],
-                )
-                logger.info(
-                    "    [execute_queries] #%d: %s (score=%.3f, facets=%d)",
-                    j + 1,
-                    display_name[:60],
-                    r.get("total_score", 0),
-                    r.get("facet_matches", 0),
-                )
-            if is_cacheable and result_dicts:
-                await cache.set(cache_key, result_dicts, ttl=300)
-            return table, result_dicts
+            return table, filtered_results
         except Exception as e:
             logger.warning(
                 "  [execute_queries] Query FAILED: table=%s error=%s", table, str(e)
@@ -125,19 +124,11 @@ async def execute_queries(state: AssistantState) -> dict:
     tasks = [_run_query(q) for q in planned]
     results_list = await asyncio.gather(*tasks)
 
-    # Merge results by table (multiple queries may target the same table)
     query_results: dict[str, list] = {}
     for table, results in results_list:
         if table in query_results:
             query_results[table].extend(results)
         else:
             query_results[table] = results
-
-    total = sum(len(v) for v in query_results.values())
-    logger.info(
-        "===== NODE 5: EXECUTE QUERIES COMPLETE =====",
-        total_results=total,
-        results_per_table={t: len(v) for t, v in query_results.items()},
-    )
 
     return {"query_results": query_results, "current_node": "execute_queries"}

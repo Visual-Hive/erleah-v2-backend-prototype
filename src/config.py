@@ -21,12 +21,13 @@ class Settings(BaseSettings):
     # Anthropic (Haiku for evaluation)
     anthropic_haiku_model: str = "claude-haiku-4-5-20251001"
 
-    # xAI / Grok (acknowledgments)
-    xai_api_key: str = ""
-    xai_model: str = "grok-3-mini-fast-latest"
-
     # Groq (fast inference via LPU)
     groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+
+    # xAI / Grok (acknowledgments) - DEPRECATED in favor of Groq
+    xai_api_key: str = ""
+    xai_model: str = "grok-3-mini-fast-latest"
 
     # App Config
     environment: str = "development"
@@ -52,6 +53,13 @@ class Settings(BaseSettings):
     # so the frontend can watch via WebSocket (no SSE needed on frontend)
     directus_streaming_enabled: bool = True
     directus_streaming_interval_ms: int = 200  # Min ms between Directus PATCH calls
+
+    # LLM Proxy (Local development)
+    use_llm_proxy: bool = False
+    llm_proxy_url: str = "http://localhost:7999/v1"
+    llm_proxy_api_key: str = "mythong2005"
+    llm_proxy_model: str = "gemini_cli/gemini-3-flash-preview"
+    use_proxy_for_embedding: bool = False  # Keep False to ensure Qdrant compatibility
 
     # DevTools debug mode — emit node_start/node_end/pipeline_summary SSE events
     debug_mode: bool = True

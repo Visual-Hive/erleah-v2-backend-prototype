@@ -11,7 +11,18 @@ class EmbeddingService:
     """Service for generating text embeddings using OpenAI."""
 
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        if settings.use_proxy_for_embedding:
+            logger.info(
+                "  [embedding] using local LLM proxy",
+                proxy_url=settings.llm_proxy_url,
+                model=settings.embedding_model,
+            )
+            self.client = AsyncOpenAI(
+                api_key=settings.llm_proxy_api_key, base_url=settings.llm_proxy_url
+            )
+        else:
+            self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+
         self.model = settings.embedding_model
         self._breaker = get_circuit_breaker("openai_embedding")
         logger.info(

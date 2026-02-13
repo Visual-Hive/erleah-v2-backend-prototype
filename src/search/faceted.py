@@ -103,6 +103,7 @@ async def faceted_search(
     user_profile_facets: dict[str, str] | None = None,
     filters: dict[str, Any] | None = None,
     score_threshold: float | None = None,
+    query_vector: list[float] | None = None,
 ) -> List[SearchResult]:
     """
     Search using the multi-faceted strategy with weighted scoring.
@@ -119,6 +120,7 @@ async def faceted_search(
         conference_id=conference_id,
         limit=limit,
         has_user_facets=bool(user_profile_facets),
+        has_precomputed_vector=query_vector is not None,
     )
 
     qdrant = get_qdrant_service()
@@ -146,12 +148,17 @@ async def faceted_search(
         logger.info(
             "  [SEARCH] Strategy: STANDARD FACETED (embed query -> search all facets)"
         )
-        query_vector = await embedding_service.embed_text(query)
+        if query_vector is None:
+            query_vector = await embedding_service.embed_text(query)
+
         logger.info(
-            "  [SEARCH] Query embedded (dims=%d), searching %s_facets...",
+            "  [SEARCH] Query vector ready (dims=%d), searching %s_facets...",
             len(query_vector),
             entity_type,
         )
+
+        # Raw vector search threshold should be low to gather candidates for faceted scoring
+        raw_vector_threshold = 0.10
 
         raw_results = await qdrant.search_faceted(
             entity_type=entity_type,
@@ -159,11 +166,7 @@ async def faceted_search(
             conference_id=conference_id,
             facet_key=None,  # Search all facets
             limit=limit * 5,
-            **(
-                {"score_threshold": score_threshold}
-                if score_threshold is not None
-                else {}
-            ),
+            score_threshold=raw_vector_threshold,
         )
 
         logger.info(
@@ -172,6 +175,13 @@ async def faceted_search(
             entity_type,
         )
         result = _aggregate_and_score(raw_results, entity_config, entity_type, limit)
+
+    # Filter by composite score threshold (e.g. 0.15 * 10 = 1.5)
+    if score_threshold is not None:
+        # If node sends 0.15, we compare against composite_score (which is raw * 10)
+        # So we multiply threshold by 10 to match our composite scale
+        final_threshold = score_threshold * 10
+        result = [r for r in result if r.total_score >= final_threshold]
 
     duration = time.perf_counter() - start_time
     FACETED_SEARCH_DURATION.labels(entity_type=entity_type).observe(duration)
@@ -265,8 +275,10 @@ async def _paired_faceted_search(
             w = entity_config.get_weight(fk)
             weighted_sum += score * w
             weight_sum += w
+
         depth = weighted_sum / weight_sum if weight_sum > 0 else 0.0
 
+        # Back to original Secret Sauce: (breadth*0.4 + depth*0.6) * 10
         composite_score = (breadth * 0.4 + depth * 0.6) * 10
 
         FACETED_SEARCH_SCORE.observe(composite_score)
@@ -384,6 +396,7 @@ async def hybrid_search(
     user_profile_facets: dict[str, str] | None = None,
     filters: dict[str, Any] | None = None,
     score_threshold: float | None = None,
+    query_vector: list[float] | None = None,
 ) -> List[SearchResult]:
     """Router for choosing between Master Search (Specific) vs Faceted Search (Vague)."""
 
@@ -404,29 +417,31 @@ async def hybrid_search(
             user_profile_facets,
             filters,
             score_threshold=score_threshold,
+            query_vector=query_vector,
         )
 
     # Fallback to Master collection (Simple vector search)
-    logger.info(
-        "  [SEARCH] Using MASTER search (non-faceted) on %s_master", entity_type
-    )
+    plural = entity_type if entity_type.endswith("s") else f"{entity_type}s"
+    logger.info("  [SEARCH] Using MASTER search (non-faceted) on %s_master", plural)
     qdrant = get_qdrant_service()
     embedding = get_embedding_service()
-    query_vector = await embedding.embed_text(query)
+
+    if query_vector is None:
+        query_vector = await embedding.embed_text(query)
 
     raw = await qdrant.search(
-        collection_name=f"{entity_type}_master",
+        collection_name=f"{plural}_master",
         query_vector=query_vector,
         conference_id=conference_id,
         limit=limit,
-        **({"score_threshold": score_threshold} if score_threshold is not None else {}),
+        score_threshold=0.05,  # Extremely low threshold for master search to ensure we find the exact name
     )
 
     result = [
         SearchResult(
             entity_id=r.payload.get("entity_id"),
             entity_type=entity_type,
-            total_score=r.score,
+            total_score=r.score,  # Keep as raw similarity (0.0-1.0)
             facet_matches=1,
             payload=r.payload,
         )

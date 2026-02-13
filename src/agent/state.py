@@ -54,6 +54,8 @@ class AssistantState(TypedDict):
     intent: str
     query_mode: Literal["specific", "profile", "hybrid"] | None
     planned_queries: list[dict]  # [{table, search_mode, query_text, filters, limit}]
+    direct_response: bool  # Skip search if info is already in general_info context
+    faq_id: str | None  # ID of the matching general_info item
 
     # --- execute_queries ---
     query_results: dict[str, list]  # {table_name: [SearchResult, ...]}
@@ -72,7 +74,9 @@ class AssistantState(TypedDict):
     # --- evaluate ---
     quality_score: float | None
     confidence_score: float | None
-    evaluation: dict[str, Any] | None  # Structured evaluation {quality_score, confidence, suggestions}
+    evaluation: (
+        dict[str, Any] | None
+    )  # Structured evaluation {quality_score, confidence, suggestions}
 
     # --- generate_acknowledgment ---
     acknowledgment_text: str

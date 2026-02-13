@@ -58,14 +58,21 @@ _MODEL_LOOKUP: dict[tuple[str, str], ModelOption] = {
     (m.provider, m.model_id): m for m in AVAILABLE_MODELS
 }
 
-# LLM nodes that the registry manages (generate_acknowledgment uses Grok client separately)
-LLM_NODES = ["plan_queries", "generate_response", "evaluate", "update_profile"]
+# LLM nodes that the registry manages
+LLM_NODES = [
+    "plan_queries",
+    "generate_response",
+    "evaluate",
+    "update_profile",
+    "acknowledgment",
+]
 
 DEFAULT_ASSIGNMENTS: dict[str, tuple[str, str]] = {
     "plan_queries": ("anthropic", "claude-sonnet-4-20250514"),
     "generate_response": ("anthropic", "claude-sonnet-4-20250514"),
     "evaluate": ("anthropic", "claude-haiku-4-5-20251001"),
     "update_profile": ("anthropic", "claude-sonnet-4-20250514"),
+    "acknowledgment": ("groq", "llama-3.3-70b-versatile"),
 }
 
 
@@ -98,6 +105,21 @@ class ModelConfig:
 
 def _create_llm(provider: str, model_id: str) -> BaseChatModel:
     """Create a LangChain chat model instance for a given provider + model."""
+    if settings.use_llm_proxy:
+        from langchain_openai import ChatOpenAI
+
+        logger.info(
+            "  [llm_registry] using local LLM proxy",
+            proxy_url=settings.llm_proxy_url,
+            model=settings.llm_proxy_model,
+        )
+        return ChatOpenAI(
+            model=settings.llm_proxy_model,
+            api_key=settings.llm_proxy_api_key,
+            base_url=settings.llm_proxy_url,
+            temperature=0,
+        )
+
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
 
@@ -112,9 +134,7 @@ def _create_llm(provider: str, model_id: str) -> BaseChatModel:
 
         api_key = settings.groq_api_key
         if not api_key:
-            raise ValueError(
-                "GROQ_API_KEY not set. Add it to .env to use Groq models."
-            )
+            raise ValueError("GROQ_API_KEY not set. Add it to .env to use Groq models.")
         return ChatGroq(  # type: ignore[call-arg]
             model=model_id,
             api_key=api_key,

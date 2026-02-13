@@ -41,10 +41,10 @@ class QdrantService:
         )
 
     async def ensure_collections(self) -> None:
-        """Create collections if they don't exist."""
-        logger.info("  [qdrant] Ensuring collections exist", total=len(COLLECTIONS))
-        created = []
-        existing = []
+        """Create collections and payload indices if they don't exist."""
+        logger.info(
+            "  [qdrant] Ensuring collections and indices exist", total=len(COLLECTIONS)
+        )
         for name in COLLECTIONS.values():
             if not await self.client.collection_exists(name):
                 await self.client.create_collection(
@@ -54,14 +54,24 @@ class QdrantService:
                         distance=Distance.COSINE,
                     ),
                 )
-                created.append(name)
-            else:
-                existing.append(name)
-        logger.info(
-            "  [qdrant] Collections ready",
-            created=created if created else "none",
-            already_existing=len(existing),
-        )
+                logger.info(f"  [qdrant] Created collection: {name}")
+
+            # Create Payload Index for conference_id (REQUIRED for filtering)
+            await self.client.create_payload_index(
+                collection_name=name,
+                field_name="conference_id",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+
+            # Create Payload Index for facet_key in facet collections
+            if "facets" in name:
+                await self.client.create_payload_index(
+                    collection_name=name,
+                    field_name="facet_key",
+                    field_schema=models.PayloadSchemaType.KEYWORD,
+                )
+
+        logger.info("  [qdrant] Collections and indices are READY")
 
     async def upsert_points(self, collection_name: str, points: list) -> None:
         """Upsert points into a collection."""
@@ -147,10 +157,12 @@ class QdrantService:
         conference_id: str,
         facet_key: str | None = None,  # If None, search ALL facets
         limit: int = 20,
-        score_threshold: float = 0.3,
+        score_threshold: float = 0.1,  # Lowered default for multi-faceted matching
     ) -> list[models.ScoredPoint]:
         """Wrapper for searching facet collections."""
-        collection = f"{entity_type}_facets"
+        # Ensure collection name is plural to match ingestion script
+        plural = entity_type if entity_type.endswith("s") else f"{entity_type}s"
+        collection = f"{plural}_facets"
         filters = {"facet_key": facet_key} if facet_key else None
 
         logger.info(
