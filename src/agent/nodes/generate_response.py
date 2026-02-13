@@ -54,6 +54,87 @@ def _extract_mentioned_ids(response_text: str, all_ids: list[str]) -> list[str]:
     return mentioned
 
 
+def _condense_search_result(result: dict, entity_type: str) -> dict:
+    """Extract key fields from a search result based on entity type.
+    
+    Creates a condensed version of search results to reduce prompt size
+    while keeping essential information for response generation.
+    
+    Args:
+        result: A search result dict from execute_queries, with structure:
+            {
+                "entity_id": str,
+                "entity_type": str,
+                "total_score": float,
+                "facet_matches": int,
+                "payload": { ... actual entity data ... }
+            }
+        entity_type: The type of entity (exhibitors, sessions, speakers, attendees)
+    """
+    # The actual data is nested in the 'payload' field
+    payload = result.get("payload", {})
+    
+    condensed = {
+        "name": payload.get("name") or payload.get("title") or payload.get("company_name") or "Unknown",
+        "entity_id": result.get("entity_id"),
+        "score": result.get("total_score"),  # Include relevance score
+    }
+    
+    # Add entity-specific fields from payload, checking if they exist
+    if entity_type == "exhibitors":
+        if payload.get("category"):
+            condensed["category"] = payload["category"]
+        if payload.get("description"):
+            condensed["description"] = payload["description"][:200]
+        if payload.get("booth"):
+            condensed["booth"] = payload["booth"]
+        if payload.get("website"):
+            condensed["website"] = payload["website"]
+            
+    elif entity_type == "sessions":
+        if payload.get("speakers"):
+            condensed["speakers"] = payload["speakers"]
+        if payload.get("start_time"):
+            condensed["time"] = payload["start_time"]
+        elif payload.get("time"):
+            condensed["time"] = payload["time"]
+        if payload.get("end_time"):
+            condensed["end_time"] = payload["end_time"]
+        if payload.get("location"):
+            condensed["location"] = payload["location"]
+        if payload.get("track"):
+            condensed["track"] = payload["track"]
+        if payload.get("description"):
+            condensed["description"] = payload["description"][:150]
+            
+    elif entity_type == "speakers":
+        if payload.get("company"):
+            condensed["company"] = payload["company"]
+        if payload.get("title"):
+            condensed["title"] = payload["title"]
+        if payload.get("bio"):
+            condensed["bio"] = payload["bio"][:150]
+        if payload.get("sessions"):
+            condensed["sessions"] = payload["sessions"]
+            
+    elif entity_type == "attendees":
+        if payload.get("company"):
+            condensed["company"] = payload["company"]
+        if payload.get("role"):
+            condensed["role"] = payload["role"]
+        if payload.get("interests"):
+            # Top 5 interests to keep prompt small
+            interests = payload["interests"]
+            if isinstance(interests, list):
+                condensed["interests"] = interests[:5]
+            else:
+                condensed["interests"] = interests
+        if payload.get("looking_for"):
+            condensed["looking_for"] = payload["looking_for"][:100]
+    
+    return condensed
+
+
 def _build_error_section(state: AssistantState) -> str:
     """Build error context section for the system prompt.
 
@@ -149,7 +230,7 @@ async def generate_response(state: AssistantState) -> dict:
         recent = history[-3:]
         context_parts.append(f"Recent conversation: {json.dumps(recent, default=str)}")
 
-    # Collect all entity IDs from search results
+    # Collect all entity IDs from search results and build condensed context
     all_entity_ids = []
     if query_results:
         for table, results in query_results.items():
@@ -158,14 +239,29 @@ async def generate_response(state: AssistantState) -> dict:
                     eid = r.get("entity_id")
                     if eid:
                         all_entity_ids.append(eid)
+                
+                # Use the helper function to condense results based on entity type
+                condensed_results = [
+                    _condense_search_result(r, table) for r in results[:5]
+                ]
+                
                 context_parts.append(
-                    f"\nSearch results for '{table}' ({len(results)} results):\n"
-                    f"{json.dumps(results[:10], default=str, indent=2)}"
+                    f"\nSearch results for '{table}' ({len(results)} found, showing {len(condensed_results)}):\n"
+                    f"{json.dumps(condensed_results, default=str, indent=2)}"
                 )
             else:
                 context_parts.append(f"\nNo results found for '{table}'.")
 
     generation_prompt = "\n\n".join(context_parts)
+    
+    # Log prompt size for debugging latency issues
+    prompt_tokens_estimate = len(generation_prompt) // 4  # Rough estimate: ~4 chars per token
+    logger.info(
+        "  [generate_response] Prompt built",
+        prompt_length_chars=len(generation_prompt),
+        estimated_tokens=prompt_tokens_estimate,
+        num_search_results=total_results,
+    )
 
     # Build system prompt with error awareness if needed
     registry = get_prompt_registry()
@@ -175,22 +271,66 @@ async def generate_response(state: AssistantState) -> dict:
         system_prompt += error_section
 
     try:
-        # Use ainvoke (streaming is handled by astream_events at the graph level)
-        logger.info(
-            "  [generate_response] Calling LLM to generate user-facing response..."
-        )
-        llm = get_llm_registry().get_model("generate_response")
-        result = await llm.ainvoke(
-            [
+        # Use astream() for true streaming - emits on_chat_model_stream events
+        # that the graph level captures and forwards to SSE clients.
+        # We collect chunks here for the final response_text.
+        registry = get_llm_registry()
+        llm = registry.get_model("generate_response")
+        model_config = registry.get_node_config("generate_response")
+
+        # Build messages - only Anthropic supports cache_control
+        messages = [HumanMessage(content=generation_prompt)]
+        if model_config.provider == "anthropic":
+            # Anthropic: use cache_control for prompt caching
+            messages = [
                 SystemMessage(
                     content=system_prompt,
                     additional_kwargs={"cache_control": {"type": "ephemeral"}},
                 ),
                 HumanMessage(content=generation_prompt),
             ]
+        else:
+            # Other providers: include system as first message (OpenAI-compatible)
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=generation_prompt),
+            ]
+
+        logger.info(
+            "  [generate_response] Starting LLM stream...",
+            model=f"{model_config.provider}/{model_config.model_id}",
+            display_name=model_config.display_name,
         )
 
-        response_text = str(result.content)
+        t0 = time.perf_counter()
+        first_chunk_time = None
+        chunk_count = 0
+        full_response = ""
+
+        async for chunk in llm.astream(messages):
+            # Each chunk is an AIMessageChunk with .content
+            content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+            if isinstance(content, str) and content:
+                full_response += content
+                chunk_count += 1
+                if first_chunk_time is None:
+                    first_chunk_time = time.perf_counter()
+                    logger.info(
+                        "  [generate_response] First token received",
+                        time_to_first_token=f"{first_chunk_time - t0:.2f}s",
+                    )
+
+        duration = time.perf_counter() - t0
+        response_text = full_response
+
+        logger.info(
+            "  [generate_response] LLM stream completed",
+            model=f"{model_config.provider}/{model_config.model_id}",
+            duration_seconds=f"{duration:.2f}s",
+            total_chunks=chunk_count,
+            time_to_first_token=f"{first_chunk_time - t0:.2f}s" if first_chunk_time else "N/A",
+            response_length=len(response_text),
+        )
         referenced_ids = _extract_mentioned_ids(response_text, all_entity_ids)
 
         logger.info(

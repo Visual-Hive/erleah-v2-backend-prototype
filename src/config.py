@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     xai_model: str = "grok-3-mini-fast-latest"
 
+    # DeepInfra (GLM-5 and other open models)
+    deepinfra_api_key: str = ""
+
     # App Config
     environment: str = "development"
     api_host: str = "0.0.0.0"

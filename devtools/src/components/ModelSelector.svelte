@@ -25,6 +25,7 @@
   const PROVIDER_COLORS = {
     anthropic: 'bg-orange-900/40 text-orange-300',
     groq: 'bg-cyan-900/40 text-cyan-300',
+    deepinfra: 'bg-purple-900/40 text-purple-300',
   };
 
   // Track pending selection per node (before apply)

@@ -51,6 +51,8 @@ AVAILABLE_MODELS: list[ModelOption] = [
     ModelOption("groq", "llama-3.3-70b-versatile", "Llama 3.3 70B", "Very Fast"),
     ModelOption("groq", "llama-3.1-8b-instant", "Llama 3.1 8B", "Ultra Fast"),
     ModelOption("groq", "mixtral-8x7b-32768", "Mixtral 8x7B", "Very Fast"),
+    ModelOption("deepinfra", "zai-org/GLM-5", "GLM 5", "Medium"),
+    ModelOption("deepinfra", "zai-org/GLM-4.7-Flash", "GLM 4.7 Flash", "Ultra Fast"),
 ]
 
 # Quick lookup: (provider, model_id) → ModelOption
@@ -138,6 +140,21 @@ def _create_llm(provider: str, model_id: str) -> BaseChatModel:
         return ChatGroq(  # type: ignore[call-arg]
             model=model_id,
             api_key=api_key,
+            temperature=0,
+        )
+
+    if provider == "deepinfra":
+        from langchain_openai import ChatOpenAI
+
+        api_key = settings.deepinfra_api_key
+        if not api_key:
+            raise ValueError(
+                "DEEPINFRA_API_KEY not set. Add it to .env to use DeepInfra models."
+            )
+        return ChatOpenAI(
+            model=model_id,
+            api_key=api_key,
+            base_url="https://api.deepinfra.com/v1/openai",
             temperature=0,
         )
 
@@ -238,10 +255,13 @@ class LLMRegistry:
         result = []
         for m in AVAILABLE_MODELS:
             entry = m.to_dict()
-            # Mark Groq models as unavailable if no API key
+            # Mark models as unavailable if no API key
             if m.provider == "groq" and not settings.groq_api_key:
                 entry["available"] = False
                 entry["reason"] = "GROQ_API_KEY not configured"
+            elif m.provider == "deepinfra" and not settings.deepinfra_api_key:
+                entry["available"] = False
+                entry["reason"] = "DEEPINFRA_API_KEY not configured"
             else:
                 entry["available"] = True
             result.append(entry)

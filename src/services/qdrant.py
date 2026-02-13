@@ -90,12 +90,21 @@ class QdrantService:
         self,
         collection_name: str,
         query_vector: list[float],
-        conference_id: str,
+        conference_id: str | None = None,
         limit: int = 10,
         score_threshold: float = 0.4,
         filter_conditions: dict | None = None,
     ) -> list[models.ScoredPoint]:
-        """Base search method with retry and circuit breaker."""
+        """Base search method with retry and circuit breaker.
+        
+        Args:
+            collection_name: Qdrant collection to search
+            query_vector: Embedding vector for the query
+            conference_id: Optional conference filter (None = search all records, for single-tenant deployments)
+            limit: Maximum results to return
+            score_threshold: Minimum similarity score
+            filter_conditions: Additional filter conditions
+        """
         import time as _time
 
         search_start = _time.perf_counter()
@@ -103,20 +112,23 @@ class QdrantService:
         logger.info(
             "  [qdrant] search started",
             collection=collection_name,
-            conference_id=conference_id,
+            conference_id=conference_id or "ALL (no filter)",
             limit=limit,
             score_threshold=score_threshold,
             filters=filter_conditions or "none",
         )
 
         async def _do_search():
-            # Base filter: Must match conference_id
-            must_conditions: list[Condition] = [
-                models.FieldCondition(
-                    key="conference_id",
-                    match=models.MatchValue(value=conference_id),
+            # Build filter conditions - conference_id is optional for single-tenant deployments
+            must_conditions: list[Condition] = []
+            
+            if conference_id:
+                must_conditions.append(
+                    models.FieldCondition(
+                        key="conference_id",
+                        match=models.MatchValue(value=conference_id),
+                    )
                 )
-            ]
 
             # Additional filters (e.g., facet_key)
             if filter_conditions:
@@ -154,12 +166,21 @@ class QdrantService:
         self,
         entity_type: str,
         query_vector: list[float],
-        conference_id: str,
+        conference_id: str | None = None,
         facet_key: str | None = None,  # If None, search ALL facets
         limit: int = 20,
         score_threshold: float = 0.1,  # Lowered default for multi-faceted matching
     ) -> list[models.ScoredPoint]:
-        """Wrapper for searching facet collections."""
+        """Wrapper for searching facet collections.
+        
+        Args:
+            entity_type: Type of entity (sessions, exhibitors, speakers, attendees)
+            query_vector: Embedding vector for the query
+            conference_id: Optional conference filter (None = search all records)
+            facet_key: Optional specific facet to search (None = search all facets)
+            limit: Maximum results to return
+            score_threshold: Minimum similarity score
+        """
         # Ensure collection name is plural to match ingestion script
         plural = entity_type if entity_type.endswith("s") else f"{entity_type}s"
         collection = f"{plural}_facets"
@@ -169,6 +190,7 @@ class QdrantService:
             "  [qdrant] search_faceted",
             entity_type=entity_type,
             collection=collection,
+            conference_id=conference_id or "ALL (no filter)",
             facet_key=facet_key or "ALL",
             limit=limit,
             score_threshold=score_threshold,

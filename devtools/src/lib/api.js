@@ -67,8 +67,9 @@ export function sendMessage(message, userContext = {}) {
     message,
     user_context: {
       user_id: userContext.user_id || 'devtools-user',
-      conference_id: userContext.conference_id || 'dev',
       conversation_id: userContext.conversation_id || `devtools-${Date.now()}`,
+      // conference_id is optional - backend will search all records if not provided
+      ...(userContext.conference_id && { conference_id: userContext.conference_id }),
       ...userContext,
     },
   });

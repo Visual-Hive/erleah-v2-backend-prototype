@@ -20,7 +20,13 @@ async def execute_queries(state: AssistantState) -> dict:
     logger.info("===== NODE 5: EXECUTE QUERIES =====")
     planned = state.get("planned_queries", [])
     user_context = state.get("user_context", {})
-    conference_id = user_context.get("conference_id", "")
+    # Use None as default for single-tenant deployments (no conference_id filter)
+    conference_id = user_context.get("conference_id") or None
+    
+    logger.info(
+        "  [execute_queries] User context: conference_id=%s",
+        conference_id or "ALL (no filter)",
+    )
 
     # Check simulation flags
     sim = get_simulation_registry()

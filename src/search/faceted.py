@@ -98,7 +98,7 @@ class SearchResult:
 async def faceted_search(
     entity_type: EntityType,
     query: str,
-    conference_id: str,
+    conference_id: str | None = None,
     limit: int = 10,
     user_profile_facets: dict[str, str] | None = None,
     filters: dict[str, Any] | None = None,
@@ -110,6 +110,16 @@ async def faceted_search(
 
     For entities with paired facets and user_profile_facets, uses paired matching:
     user's buying_intent → target's selling_intent, etc.
+    
+    Args:
+        entity_type: Type of entity to search (sessions, exhibitors, speakers, attendees)
+        query: Search query text
+        conference_id: Optional conference filter (None = search all records, for single-tenant)
+        limit: Maximum results to return
+        user_profile_facets: User's profile facets for paired matching
+        filters: Additional filters
+        score_threshold: Minimum score threshold
+        query_vector: Pre-computed query embedding (optional)
     """
     start_time = time.perf_counter()
 
@@ -195,12 +205,20 @@ async def faceted_search(
 
 async def _paired_faceted_search(
     entity_type: str,
-    conference_id: str,
+    conference_id: str | None,
     user_profile_facets: dict[str, str],
     entity_config: Any,
     limit: int,
 ) -> List[SearchResult]:
-    """Attendee-specific paired matching: buyer↔seller facet search."""
+    """Attendee-specific paired matching: buyer↔seller facet search.
+    
+    Args:
+        entity_type: Type of entity to search
+        conference_id: Optional conference filter (None = search all records)
+        user_profile_facets: User's profile facets for matching
+        entity_config: Facet configuration for the entity type
+        limit: Maximum results to return
+    """
     import asyncio
 
     qdrant = get_qdrant_service()
@@ -390,7 +408,7 @@ def _aggregate_and_score(
 async def hybrid_search(
     entity_type: EntityType,
     query: str,
-    conference_id: str,
+    conference_id: str | None = None,
     use_faceted: bool = True,
     limit: int = 10,
     user_profile_facets: dict[str, str] | None = None,
@@ -398,13 +416,26 @@ async def hybrid_search(
     score_threshold: float | None = None,
     query_vector: list[float] | None = None,
 ) -> List[SearchResult]:
-    """Router for choosing between Master Search (Specific) vs Faceted Search (Vague)."""
+    """Router for choosing between Master Search (Specific) vs Faceted Search (Vague).
+    
+    Args:
+        entity_type: Type of entity to search (sessions, exhibitors, speakers, attendees)
+        query: Search query text
+        conference_id: Optional conference filter (None = search all records, for single-tenant)
+        use_faceted: Use faceted search if True, master search if False
+        limit: Maximum results to return
+        user_profile_facets: User's profile facets for paired matching
+        filters: Additional filters
+        score_threshold: Minimum score threshold
+        query_vector: Pre-computed query embedding (optional)
+    """
 
     logger.info(
-        "  [SEARCH] hybrid_search called: entity=%s faceted=%s query='%s' limit=%d",
+        "  [SEARCH] hybrid_search called: entity=%s faceted=%s query='%s' conference_id=%s limit=%d",
         entity_type,
         use_faceted,
         query[:80],
+        conference_id or "ALL",
         limit,
     )
 

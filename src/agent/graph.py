@@ -517,6 +517,17 @@ async def stream_agent_response(
                 and langgraph_node == "generate_response"
                 and not done_sent
             ):
+                # Check if we have a fallback response_text (error path) that wasn't streamed
+                output = event.get("data", {}).get("output", {})
+                if isinstance(output, dict):
+                    fallback_text = output.get("response_text", "")
+                    # If no chunks were streamed but we have response_text, send it now
+                    if fallback_text and not full_response_text:
+                        full_response_text = fallback_text
+                        yield {"event": "chunk", "data": {"text": fallback_text}}
+                        if directus_writer:
+                            await directus_writer.write_chunk(fallback_text)
+                
                 done_sent = True
                 if directus_writer:
                     await directus_writer.complete(
@@ -530,17 +541,6 @@ async def stream_agent_response(
                     "event": "done",
                     "data": {"trace_id": trace_id, "referenced_ids": referenced_ids},
                 }
-
-                # Directus streaming: complete the message with final text
-                if directus_writer:
-                    final_text = event.get("data", {}).get("output", {})
-                    response_text = (
-                        final_text.get("response_text", "")
-                        if isinstance(final_text, dict)
-                        else ""
-                    )
-                    if response_text:
-                        await directus_writer.complete(response_text)
 
             # --- Debug: capture latest output from on_chain_end ---
             if (

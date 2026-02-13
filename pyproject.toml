@@ -49,6 +49,9 @@ dependencies = [
     # Groq (fast inference)
     "langchain-groq>=0.1.0",
 
+    # OpenAI-compatible providers (DeepInfra, etc.)
+    "langchain-openai>=0.1.0",
+
     # System monitoring
     "psutil>=5.9.0",
 
