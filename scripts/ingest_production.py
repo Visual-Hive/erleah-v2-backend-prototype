@@ -154,7 +154,13 @@ async def ingest_entities(
     # Process all items that have at least a name/title/company (or is an attendee)
     items_to_process = []
     for item in raw_items:
-        name = item.get("company") or item.get("name") or item.get("title")
+        # Business Logic: Exhibitors use 'company' as primary identity.
+        # Speakers and Sessions MUST use 'name' or 'title' first.
+        if entity_type == "exhibitor":
+            name = item.get("company") or item.get("name") or item.get("title")
+        else:
+            name = item.get("name") or item.get("title") or item.get("company")
+
         if not name and entity_type == "attendee":
             # Try to get name from registration_profile for attendees
             rp = item.get("registration_profile")
