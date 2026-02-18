@@ -506,6 +506,29 @@ export async function toggleSimulationFlag(flag, enabled) {
   }
 }
 
+// ─── Debug API: Tool Tests ──────────────────────────────────────────
+
+/**
+ * Run a direct tool call against the backend (bypass full pipeline).
+ * @param {string} tool - Tool name: "lookup_registration" | "send_registration_email"
+ * @param {object} args - Tool arguments (identifier, internal_id, documents, etc.)
+ * @returns {object} { ok, result, error, duration_ms }
+ */
+export async function runToolTest(tool, args) {
+  try {
+    const res = await fetch(`${DEBUG_BASE}/tools/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool, args }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error('[api] runToolTest error:', err);
+    return { ok: false, error: err.message, duration_ms: 0 };
+  }
+}
+
 /**
  * Reset all simulation flags to disabled.
  */

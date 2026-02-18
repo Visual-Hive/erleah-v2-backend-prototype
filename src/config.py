@@ -68,6 +68,13 @@ class Settings(BaseSettings):
     llm_proxy_model: str = "gemini_cli/gemini-3-flash-preview"
     use_proxy_for_embedding: bool = False  # Keep False to ensure Qdrant compatibility
 
+    # Email service (Phase 3)
+    email_provider: str = "console"           # "console" | "resend" | "sendgrid"
+    email_from_address: str = "assistant@erleah.com"
+    email_from_name: str = "Erleah Conference Assistant"
+    resend_api_key: str = ""
+    sendgrid_api_key: str = ""
+
     # DevTools debug mode — emit node_start/node_end/pipeline_summary SSE events
     debug_mode: bool = True
 

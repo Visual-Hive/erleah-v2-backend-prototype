@@ -27,6 +27,7 @@ from langgraph.graph import END, StateGraph
 from src.agent.nodes.check_results import check_results
 from src.agent.nodes.evaluate import evaluate
 from src.agent.nodes.execute_queries import execute_queries
+from src.agent.nodes.execute_tools import execute_tools
 from src.agent.nodes.fetch_data import fetch_data_parallel
 from src.agent.nodes.generate_acknowledgment import generate_acknowledgment
 from src.agent.nodes.generate_response import generate_response
@@ -61,27 +62,32 @@ WORKFLOW_TIMEOUT = 120.0  # seconds (increased for Proxy/Gemini latency)
 
 
 def should_update_profile(state: AssistantState) -> str:
-    """Skip profile updates — anonymous users only (TASK-03).
+    """Route after plan_queries.
 
-    Also checks force_response — if a critical failure occurred, skip
-    straight to generate_response regardless of profile needs.
+    Priority order:
+    1. force_response  → generate_response (critical failure)
+    2. direct_response → generate_response (FAQ answer)
+    3. needs_user_input → generate_response (ask user for info before calling tools)
+    4. tool_calls      → execute_tools (Phase 3 action tools)
+    5. default         → execute_queries (search path)
     """
     if state.get("force_response"):
         logger.info("  [conditional] force_response=True, skipping to generate_response")
         return "generate_response"
-    needs_update = state.get("profile_needs_update", False)
-    direct = state.get("direct_response", False)
-
-    # Profile updates disabled for anonymous mode (TASK-03)
-    # update_profile node stays registered but is unreachable
-
-    # Otherwise, decide between response or search
-    decision = "generate_response" if direct else "execute_queries"
-    logger.info(
-        "  [conditional] should_update_profile? NO -> decision",
-        decision=decision,
-    )
-    return decision
+    if state.get("direct_response"):
+        logger.info("  [conditional] direct_response=True, skipping to generate_response")
+        return "generate_response"
+    if state.get("needs_user_input"):
+        logger.info("  [conditional] needs_user_input=True, skipping to generate_response")
+        return "generate_response"
+    if state.get("tool_calls"):
+        logger.info(
+            "  [conditional] tool_calls present, routing to execute_tools",
+            num_tools=len(state["tool_calls"]),
+        )
+        return "execute_tools"
+    logger.info("  [conditional] default: execute_queries")
+    return "execute_queries"
 
 
 def should_execute_queries(state: AssistantState) -> str:
@@ -144,6 +150,7 @@ graph_builder.add_node("update_profile", update_profile)
 graph_builder.add_node("generate_acknowledgment", generate_acknowledgment)
 graph_builder.add_node("plan_queries", plan_queries)
 graph_builder.add_node("execute_queries", execute_queries)
+graph_builder.add_node("execute_tools", execute_tools)          # Phase 3
 graph_builder.add_node("check_results", check_results)
 graph_builder.add_node("relax_and_retry", relax_and_retry)
 graph_builder.add_node("reflect_and_replan", reflect_and_replan)  # R4
@@ -166,16 +173,20 @@ graph_builder.add_conditional_edges(
     },
 )
 
-# plan_queries → [Conditional: Update Profile or Execute/Response]
+# plan_queries → [Conditional: tools | search | direct | force]
 graph_builder.add_conditional_edges(
     "plan_queries",
     should_update_profile,
     {
         "update_profile": "update_profile",
         "execute_queries": "execute_queries",
+        "execute_tools": "execute_tools",       # Phase 3
         "generate_response": "generate_response",
     },
 )
+
+# execute_tools → generate_response (always)
+graph_builder.add_edge("execute_tools", "generate_response")
 
 # update_profile → [Conditional: Execute or Response]
 graph_builder.add_conditional_edges(
@@ -229,6 +240,7 @@ PROGRESS_MESSAGES = {
     "generate_acknowledgment": None,
     "plan_queries": "Planning strategy...",
     "execute_queries": "Searching...",
+    "execute_tools": "Processing your request...",   # Phase 3
     "check_results": "Analyzing results...",
     "relax_and_retry": "Expanding search...",
     "reflect_and_replan": "Rethinking my approach...",
@@ -294,6 +306,7 @@ _PIPELINE_NODES = {
     "generate_acknowledgment",
     "plan_queries",
     "execute_queries",
+    "execute_tools",            # Phase 3
     "check_results",
     "relax_and_retry",
     "reflect_and_replan",
@@ -412,6 +425,11 @@ async def stream_agent_response(
         "original_planned_queries": [],
         "reflection_reasoning": "",
         "reflection_strategy": "",
+        # Phase 3: action tools
+        "tool_calls": None,
+        "tool_results": {},
+        "needs_user_input": False,
+        "input_request": None,
     }
 
     seen_nodes: set[str] = set()

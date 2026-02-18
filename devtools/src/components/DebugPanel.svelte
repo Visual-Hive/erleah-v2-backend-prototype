@@ -10,7 +10,43 @@
     fetchSimulationFlags,
     toggleSimulationFlag,
     resetSimulationFlags,
+    runToolTest,
   } from '../lib/api.js';
+
+  // ─── Tool Test State ────────────────────────────────────────────────
+  let toolTestIdentifier = '';
+  let toolTestLoading = false;
+  let toolTestResult = null;
+  let toolTestError = null;
+
+  async function handleLookup() {
+    if (!toolTestIdentifier.trim()) return;
+    toolTestLoading = true;
+    toolTestResult = null;
+    toolTestError = null;
+    const res = await runToolTest('lookup_registration', { identifier: toolTestIdentifier.trim() });
+    toolTestLoading = false;
+    if (res.ok === false && res.error) {
+      toolTestError = res.error;
+    } else {
+      toolTestResult = res;
+    }
+  }
+
+  async function handleResendBadge() {
+    if (!toolTestResult?.result?.internal_id) return;
+    toolTestLoading = true;
+    const res = await runToolTest('send_registration_email', {
+      internal_id: toolTestResult.result.internal_id,
+      documents: ['badge'],
+    });
+    toolTestLoading = false;
+    if (res.ok === false && res.error) {
+      toolTestError = res.error;
+    } else {
+      toolTestResult = { ...toolTestResult, send_result: res.result };
+    }
+  }
 
   // Fetch flags on mount
   onMount(() => {
@@ -154,10 +190,101 @@
       </div>
     {/if}
 
-    <!-- Future sections placeholder -->
+    <!-- Section: Tool Tests -->
     <div class="pt-3 border-t border-gray-800/50">
-      <div class="text-center py-4">
-        <p class="text-[10px] text-gray-700 italic">More debug controls coming soon...</p>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-xs">🔧</span>
+        <h3 class="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">Tool Tests</h3>
+      </div>
+
+      <div class="space-y-2">
+        <!-- Lookup input -->
+        <div class="flex gap-2">
+          <input
+            type="text"
+            bind:value={toolTestIdentifier}
+            placeholder="Email or Reg ID"
+            class="flex-1 px-2.5 py-1.5 rounded-lg text-[11px]
+                   bg-gray-900/60 border border-gray-700 text-gray-200
+                   placeholder-gray-600 focus:outline-none focus:border-indigo-500
+                   focus:ring-1 focus:ring-indigo-500/30"
+            onkeydown={(e) => e.key === 'Enter' && handleLookup()}
+          />
+          <button
+            onclick={handleLookup}
+            disabled={toolTestLoading || !toolTestIdentifier.trim()}
+            class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium
+                   bg-indigo-600/80 text-white border border-indigo-500/50
+                   hover:bg-indigo-600 transition-colors cursor-pointer
+                   disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          >
+            {toolTestLoading ? '…' : 'Lookup'}
+          </button>
+        </div>
+
+        <!-- Error -->
+        {#if toolTestError}
+          <div class="px-2.5 py-2 rounded-lg bg-red-950/30 border border-red-900/30">
+            <p class="text-[10px] text-red-400">{toolTestError}</p>
+          </div>
+        {/if}
+
+        <!-- Result -->
+        {#if toolTestResult?.result}
+          {@const reg = toolTestResult.result}
+          <div class="p-2.5 rounded-lg bg-gray-900/50 border border-gray-700/60 space-y-1.5">
+            {#if reg.found === false}
+              <p class="text-[11px] text-amber-400">⚠️ Not found</p>
+            {:else}
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-medium text-green-400">✓ Found: {reg.first_name || '–'}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-mono">
+                  {reg.registration_type || 'unknown'}
+                </span>
+              </div>
+              <p class="text-[10px] text-gray-500 font-mono">{reg.internal_id}</p>
+
+              <!-- Available docs -->
+              {#if reg.available_documents?.length}
+                <div class="flex flex-wrap gap-1 mt-1">
+                  {#each reg.available_documents as doc}
+                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-900/40 text-indigo-300 border border-indigo-800/40">
+                      {doc}
+                    </span>
+                  {/each}
+                </div>
+              {/if}
+
+              <!-- Resend badge button -->
+              <button
+                onclick={handleResendBadge}
+                disabled={toolTestLoading}
+                class="mt-1.5 w-full px-2.5 py-1.5 rounded-lg text-[10px] font-medium
+                       bg-gray-800/60 text-gray-300 border border-gray-700
+                       hover:bg-gray-800 hover:border-gray-600 transition-colors cursor-pointer
+                       disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {toolTestLoading ? 'Sending…' : '📧 Send Badge'}
+              </button>
+            {/if}
+
+            <!-- Send result -->
+            {#if toolTestResult.send_result}
+              {@const sr = toolTestResult.send_result}
+              <div class="mt-1.5 p-2 rounded bg-green-950/30 border border-green-900/30">
+                <p class="text-[10px] text-green-400">
+                  {sr.sent ? '✓ Sent' : '✗ Failed'}
+                  {#if sr.message} — {sr.message}{/if}
+                </p>
+              </div>
+            {/if}
+
+            <!-- Raw duration -->
+            {#if toolTestResult.duration_ms}
+              <p class="text-[9px] text-gray-700 text-right">{toolTestResult.duration_ms}ms</p>
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
   </div>

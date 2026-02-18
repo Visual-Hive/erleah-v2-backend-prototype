@@ -42,6 +42,7 @@ from src.services.errors import get_user_error, QueueFull, RateLimited
 from src.services.qdrant import get_qdrant_service
 from src.services.rate_limiter import get_rate_limiter
 from src.services.faq_cache import get_faq_cache
+from src.tools.registry import initialize_tools
 from src.monitoring.tracing import setup_tracing, instrument_fastapi
 from src.monitoring.sentry import setup_sentry
 from src.api.debug import router as debug_router
@@ -82,6 +83,9 @@ async def lifespan(app: FastAPI):
     # Initialize Redis cache
     cache = get_cache_service()
     await cache.connect()
+
+    # Initialize Phase 3 action tool registry
+    initialize_tools()
 
     # Initialize and start FAQ RAM cache background task
     app.state.faq_task = asyncio.create_task(_faq_refresh_task())

@@ -20,22 +20,46 @@ Given the user's message, their current profile, and a list of General FAQ topic
 - Examine the message for new info about: interests, role, company, looking_for.
 - profile_update: {"needs_update": bool, "updates": object | null}
 
+3. REGISTRATION TOOLS:
+If the user is asking about their badge, invoice, confirmation, or registration status:
+- If they have provided an email address or registration ID → use tool_calls
+- If they have NOT provided an identifier → set needs_user_input=true and ask for it
+- NEVER search the conference database for registration requests — use tools only
+
+Available tools:
+- lookup_registration: Find a registration by email or reg ID. Returns first name, type, available docs.
+- send_registration_email: Send badge/invoice/confirmation to the registered email. Requires internal_id from lookup.
+
+For a complete "resend badge" request with email provided, use BOTH tools in sequence:
+  1. lookup_registration (to verify and get internal_id)
+  2. send_registration_email (to send the document)
+
 Output schema:
 {
   "intent": "string",
   "direct_response": bool,
   "faq_id": "string" | null,
   "query_mode": "specific" | "profile" | "hybrid" | null,
-  "queries": [
+  "queries": [...],
+  "profile_update": {"needs_update": bool, "updates": object | null},
+  "tool_calls": [
     {
-      "table": "sessions" | "exhibitors" | "speakers" | "attendees",
-      "query_text": "string",
-      "search_mode": "faceted" | "profile" | "hybrid",
-      "limit": int
+      "tool": "lookup_registration" | "send_registration_email",
+      "args": {
+        "identifier": "email or reg ID",          // for lookup_registration
+        "internal_id": "reg-xxx",                 // for send_registration_email (leave empty — injected automatically)
+        "documents": ["badge", "invoice", "confirmation"],  // for send_registration_email
+        "conference_name": "Conference Name"       // optional display name for email
+      },
+      "reason": "why this tool is being called"
     }
   ],
-  "profile_update": {"needs_update": bool, "updates": object | null}
+  "needs_user_input": bool,
+  "input_request": "string | null"
 }
+
+When tool_calls is non-empty, set queries to [] (tools and search are mutually exclusive for registration intents).
+When needs_user_input is true, set tool_calls to [] and input_request to the question you need answered.
 """
 
 GENERATE_RESPONSE_SYSTEM = """\
@@ -46,6 +70,7 @@ You will be given:
 - The user's message
 - Search results from the conference database
 - The user's profile and conversation history
+- Tool results (if registration tools were used)
 
 Guidelines:
 - Be concise and helpful. Use the search results to give specific, accurate answers.
@@ -55,6 +80,24 @@ Guidelines:
 - Format your response for readability (use bullet points for lists of items).
 - Do NOT make up information that isn't in the search results.
 - If the user's question can't be answered from the results, acknowledge this clearly.
+
+## Registration Tool Results
+
+When tool_results contains registration data:
+- Greet the user by first name when available: "I found your registration, {first_name}!"
+- List what documents you can send: "I can send your badge and invoice."
+- Always say documents will go to "your registered email address" — never reveal the email itself
+- Ask for confirmation before sending (unless the user already confirmed)
+- If lookup failed (found=False), be helpful and suggest alternatives
+- NEVER reveal any private data in the chat — not even the email address
+
+When tool_results shows send_registration_email succeeded:
+- Confirm what was sent: "Done! I've sent your badge to your registered email."
+- Remind them to check spam if needed
+- Offer to help with anything else
+
+When needs_user_input was set by the planner, the input_request is already in your context —
+phrase it naturally as part of your response.
 
 ## Error Awareness
 

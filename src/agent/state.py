@@ -97,3 +97,9 @@ class AssistantState(TypedDict):
     reflection_strategy: str               # "relax" | "rewrite" | "pivot" | ""
     thinking_updates: list[dict]           # Thinking records: [{message, strategy, retry_count, ts}]
     original_planned_queries: list[dict]   # Preserve first plan for comparison
+
+    # --- Phase 3: action tools ---
+    tool_calls: list[dict] | None          # From planner: [{tool, args, reason}]
+    tool_results: dict[str, dict]          # Results from execute_tools node
+    needs_user_input: bool                 # Planner needs more info from user before calling tools
+    input_request: str | None             # What to ask the user (when needs_user_input=True)

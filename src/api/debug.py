@@ -139,3 +139,35 @@ async def reset_simulation_flags() -> dict:
     """Reset all simulation flags to disabled."""
     registry = get_simulation_registry()
     return registry.reset_all()
+
+
+# ── Tool test endpoints ──
+
+
+class ToolRunRequest(BaseModel):
+    """Request body for running a tool directly."""
+
+    tool: str
+    args: dict = {}
+
+
+@router.post("/tools/run")
+async def run_tool(body: ToolRunRequest) -> dict:
+    """Run a Phase 3 action tool directly (bypass pipeline). DevTools only."""
+    import time
+    from src.tools.registry import get_tool, initialize_tools
+
+    initialize_tools()  # no-op if already initialized
+    tool = get_tool(body.tool)
+    if tool is None:
+        raise HTTPException(status_code=404, detail=f"Unknown tool: {body.tool}")
+
+    start = time.perf_counter()
+    try:
+        # safe_execute never raises — always returns a result dict
+        result = await tool.safe_execute(body.args, context={"trace_id": "devtools"})
+        duration_ms = round((time.perf_counter() - start) * 1000)
+        return {"ok": result.get("success", True), "result": result.get("data"), "duration_ms": duration_ms}
+    except Exception as e:
+        duration_ms = round((time.perf_counter() - start) * 1000)
+        return {"ok": False, "error": str(e), "duration_ms": duration_ms}

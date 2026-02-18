@@ -92,6 +92,11 @@ async def plan_queries(state: AssistantState) -> dict:
         query_mode = plan.get("query_mode", "hybrid")
         planned_queries = plan.get("queries", [])
 
+        # Phase 3: tool calls
+        tool_calls = plan.get("tool_calls") or []
+        needs_user_input = plan.get("needs_user_input", False)
+        input_request = plan.get("input_request")
+
         # Profile detection result
         profile_update_data = plan.get("profile_update", {})
         needs_update = profile_update_data.get("needs_update", False)
@@ -104,6 +109,8 @@ async def plan_queries(state: AssistantState) -> dict:
             needs_profile_update=needs_update,
             query_mode=query_mode,
             num_queries=len(planned_queries),
+            num_tool_calls=len(tool_calls),
+            needs_user_input=needs_user_input,
         )
 
         return {
@@ -114,6 +121,9 @@ async def plan_queries(state: AssistantState) -> dict:
             "planned_queries": planned_queries,
             "profile_needs_update": needs_update,
             "profile_updates": updates,
+            "tool_calls": tool_calls or None,
+            "needs_user_input": needs_user_input,
+            "input_request": input_request,
             "current_node": "plan_queries",
         }
     except Exception as e:
@@ -124,6 +134,9 @@ async def plan_queries(state: AssistantState) -> dict:
             "faq_id": None,
             "query_mode": "hybrid",
             "planned_queries": [],
+            "tool_calls": None,
+            "needs_user_input": False,
+            "input_request": None,
             "error": f"Plan failed: {e}",
             "current_node": "plan_queries",
         }
