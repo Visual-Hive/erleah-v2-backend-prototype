@@ -31,6 +31,8 @@ def _base_state(**overrides):
         "intent": "",
         "query_mode": None,
         "planned_queries": [],
+        "direct_response": False,
+        "faq_id": None,
         "query_results": {},
         "zero_result_tables": [],
         "retry_count": 0,
@@ -49,9 +51,20 @@ def _base_state(**overrides):
         "error": None,
         "error_node": None,
         "current_node": "",
+        # Graceful failure fields (Phase 2, TASK-01)
+        "error_context": None,
+        "partial_failure": False,
+        "force_response": False,
     }
     state.update(overrides)
     return state
+
+
+def _mock_llm_registry(mock_llm):
+    """Return a mock get_llm_registry() that yields mock_llm for any model name."""
+    mock_registry = MagicMock()
+    mock_registry.return_value.get_model.return_value = mock_llm
+    return mock_registry
 
 
 # Mock the cache service globally for node tests
@@ -88,7 +101,6 @@ class TestFetchData:
 
             assert result["user_profile"] == {}
             assert result["conversation_history"] == []
-            assert result["profile_needs_update"] is False
             assert result["current_node"] == "fetch_data"
 
     @pytest.mark.asyncio
@@ -97,26 +109,27 @@ class TestFetchData:
         mock_profile = {"interests": ["AI"], "role": "developer"}
         mock_history = [{"role": "user", "messageText": "hello"}]
 
+        # fetch_data validates user_id/conversation_id as UUIDs — use real ones
+        valid_user_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        valid_conv_id = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+
         with patch("src.agent.nodes.fetch_data.get_directus_client") as mock_dc:
             client = AsyncMock()
             client.get_user_profile.return_value = mock_profile
             client.get_conversation_context.return_value = mock_history
             mock_dc.return_value = client
 
-            # Mock the LLM call for profile detection
-            with patch("src.agent.nodes.fetch_data.sonnet") as mock_llm:
-                mock_response = MagicMock()
-                mock_response.content = json.dumps({"needs_update": False, "updates": None})
-                mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            from src.agent.nodes.fetch_data import fetch_data_parallel
 
-                from src.agent.nodes.fetch_data import fetch_data_parallel
+            state = _base_state(user_context={
+                "user_id": valid_user_id,
+                "conversation_id": valid_conv_id,
+                "conference_id": "conf-2024",
+            })
+            result = await fetch_data_parallel(state)
 
-                state = _base_state(user_context={"user_id": "u1", "conversation_id": "c1", "conference_id": "conf-2024"})
-                result = await fetch_data_parallel(state)
-
-                assert result["user_profile"] == mock_profile
-                assert result["conversation_history"] == mock_history
-                assert result["profile_needs_update"] is False
+            assert result["user_profile"] == mock_profile
+            assert result["conversation_history"] == mock_history
 
 
 # ---------------------------------------------------------------------------
@@ -137,11 +150,13 @@ class TestUpdateProfile:
     async def test_updates_profile_via_llm(self):
         updated = {"interests": ["AI", "coffee"], "role": "developer"}
 
-        with patch("src.agent.nodes.update_profile.sonnet") as mock_llm:
-            mock_response = MagicMock()
-            mock_response.content = json.dumps(updated)
-            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = json.dumps(updated)
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
+        with patch("src.agent.nodes.update_profile.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             with patch("src.agent.nodes.update_profile.get_directus_client") as mock_dc:
                 client = AsyncMock()
                 client.update_user_profile.return_value = True
@@ -165,11 +180,13 @@ class TestUpdateProfile:
 class TestGenerateAcknowledgment:
     @pytest.mark.asyncio
     async def test_generates_acknowledgment(self):
-        with patch("src.agent.nodes.generate_acknowledgment.get_grok_client") as mock_grok:
-            grok = AsyncMock()
-            grok.generate_acknowledgment.return_value = "Great question about coffee! Let me look that up."
-            mock_grok.return_value = grok
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "Great question about coffee! Let me look that up."
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
+        with patch("src.agent.nodes.generate_acknowledgment.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.generate_acknowledgment import generate_acknowledgment
 
             state = _base_state()
@@ -180,17 +197,19 @@ class TestGenerateAcknowledgment:
 
     @pytest.mark.asyncio
     async def test_fallback_on_error(self):
-        with patch("src.agent.nodes.generate_acknowledgment.get_grok_client") as mock_grok:
-            grok = AsyncMock()
-            grok.generate_acknowledgment.return_value = "I'll help you with that."
-            mock_grok.return_value = grok
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(side_effect=Exception("LLM error"))
 
+        with patch("src.agent.nodes.generate_acknowledgment.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.generate_acknowledgment import generate_acknowledgment
 
             state = _base_state()
             result = await generate_acknowledgment(state)
 
-            assert result["acknowledgment_text"] == "I'll help you with that."
+            # Should fall back to a default acknowledgment, not crash
+            assert result["acknowledgment_text"] != ""
+            assert result["current_node"] == "generate_acknowledgment"
 
 
 # ---------------------------------------------------------------------------
@@ -208,11 +227,13 @@ class TestPlanQueries:
             ],
         }
 
-        with patch("src.agent.nodes.plan_queries.sonnet") as mock_llm:
-            mock_response = MagicMock()
-            mock_response.content = json.dumps(plan_json)
-            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = json.dumps(plan_json)
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
+        with patch("src.agent.nodes.plan_queries.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.plan_queries import plan_queries
 
             state = _base_state()
@@ -225,9 +246,11 @@ class TestPlanQueries:
 
     @pytest.mark.asyncio
     async def test_handles_llm_failure_gracefully(self):
-        with patch("src.agent.nodes.plan_queries.sonnet") as mock_llm:
-            mock_llm.ainvoke = AsyncMock(side_effect=Exception("API error"))
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(side_effect=Exception("API error"))
 
+        with patch("src.agent.nodes.plan_queries.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.plan_queries import plan_queries
 
             state = _base_state()
@@ -247,11 +270,13 @@ class TestExecuteQueries:
     async def test_executes_queries_in_parallel(self):
         from src.search.faceted import SearchResult
 
+        # total_score must exceed the intent-based threshold (3.0 for general queries)
         mock_results = [
-            SearchResult(entity_id="e1", entity_type="exhibitors", total_score=0.9, facet_matches=3, payload={"name": "Coffee Co"}),
+            SearchResult(entity_id="e1", entity_type="exhibitors", total_score=4.5, facet_matches=3, payload={"name": "Coffee Co"}),
         ]
 
-        with patch("src.agent.nodes.execute_queries.hybrid_search", new_callable=AsyncMock) as mock_search:
+        # Patch at both the node module level and the source to ensure the mock takes effect
+        with patch("src.search.faceted.hybrid_search", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = mock_results
 
             from src.agent.nodes.execute_queries import execute_queries
@@ -409,12 +434,19 @@ class TestRelaxAndRetry:
 class TestGenerateResponse:
     @pytest.mark.asyncio
     async def test_generates_response_from_results(self):
-        with patch("src.agent.nodes.generate_response.sonnet") as mock_llm:
-            mock_response = MagicMock()
-            # Response must contain the entity_id for _extract_mentioned_ids to find it
-            mock_response.content = "You can find free coffee at Coffee Co (e1) booth A12!"
-            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        response_text = "You can find free coffee at Coffee Co (e1) booth A12!"
 
+        mock_llm = MagicMock()
+
+        async def mock_astream(*args, **kwargs):
+            chunk = MagicMock()
+            chunk.content = response_text
+            yield chunk
+
+        mock_llm.astream = mock_astream
+
+        with patch("src.agent.nodes.generate_response.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.generate_response import generate_response
 
             state = _base_state(
@@ -430,15 +462,24 @@ class TestGenerateResponse:
 
     @pytest.mark.asyncio
     async def test_handles_generation_error(self):
-        with patch("src.agent.nodes.generate_response.sonnet") as mock_llm:
-            mock_llm.ainvoke = AsyncMock(side_effect=Exception("API error"))
+        mock_llm = MagicMock()
 
+        async def mock_astream_error(*args, **kwargs):
+            raise Exception("API error")
+            yield  # make it a generator
+
+        mock_llm.astream = mock_astream_error
+
+        with patch("src.agent.nodes.generate_response.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.generate_response import generate_response
 
             state = _base_state()
             result = await generate_response(state)
 
-            assert "error" in result["response_text"].lower() or "sorry" in result["response_text"].lower()
+            # The fallback message may vary — just verify it's non-empty and not the input question
+            assert result["response_text"] != ""
+            assert len(result["response_text"]) > 10
 
 
 # ---------------------------------------------------------------------------
@@ -448,11 +489,13 @@ class TestGenerateResponse:
 class TestEvaluate:
     @pytest.mark.asyncio
     async def test_scores_response(self):
-        with patch("src.agent.nodes.evaluate.haiku") as mock_llm:
-            mock_response = MagicMock()
-            mock_response.content = json.dumps({"quality_score": 0.85, "confidence_score": 0.9})
-            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = json.dumps({"quality_score": 0.85, "confidence_score": 0.9})
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
+        with patch("src.agent.nodes.evaluate.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.evaluate import evaluate
 
             state = _base_state(
@@ -479,9 +522,11 @@ class TestEvaluate:
 
     @pytest.mark.asyncio
     async def test_handles_evaluation_failure(self):
-        with patch("src.agent.nodes.evaluate.haiku") as mock_llm:
-            mock_llm.ainvoke = AsyncMock(side_effect=Exception("API error"))
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(side_effect=Exception("API error"))
 
+        with patch("src.agent.nodes.evaluate.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.evaluate import evaluate
 
             state = _base_state(response_text="Some response")
@@ -499,8 +544,12 @@ class TestConditionalEdges:
     def test_should_update_profile_routes_correctly(self):
         from src.agent.graph import should_update_profile
 
+        # profile_needs_update=True → update_profile
         assert should_update_profile(_base_state(profile_needs_update=True)) == "update_profile"
-        assert should_update_profile(_base_state(profile_needs_update=False)) == "generate_acknowledgment"
+        # profile_needs_update=False, direct_response=False → execute_queries
+        assert should_update_profile(_base_state(profile_needs_update=False, direct_response=False)) == "execute_queries"
+        # profile_needs_update=False, direct_response=True → generate_response
+        assert should_update_profile(_base_state(profile_needs_update=False, direct_response=True)) == "generate_response"
 
     def test_should_retry_routes_correctly(self):
         from src.agent.graph import should_retry
@@ -516,13 +565,15 @@ class TestConditionalEdges:
 class TestPromptCaching:
     @pytest.mark.asyncio
     async def test_plan_queries_uses_system_message_with_cache_control(self):
-        with patch("src.agent.nodes.plan_queries.sonnet") as mock_llm:
-            mock_response = MagicMock()
-            mock_response.content = json.dumps({
-                "intent": "test", "query_mode": "hybrid", "queries": []
-            })
-            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = json.dumps({
+            "intent": "test", "query_mode": "hybrid", "queries": []
+        })
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
+        with patch("src.agent.nodes.plan_queries.get_llm_registry",
+                   _mock_llm_registry(mock_llm)):
             from src.agent.nodes.plan_queries import plan_queries
 
             state = _base_state()

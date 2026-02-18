@@ -11,7 +11,6 @@ The SSE stream for devtools continues to work simultaneously.
 
 import asyncio
 import time
-from typing import Any
 
 import structlog
 
@@ -142,14 +141,10 @@ class DirectusMessageWriter:
         self._cancel_pending_flush()
 
         try:
-            update_data: dict[str, Any] = {
-                "messageText": final_text,
-                "message_complete": True,
-            }
-            if metadata:
-                update_data["metadata"] = metadata
-
-            await self.client.update_message(self.message_id, update_data)
+            await self.client.complete_message(
+                message_id=self.message_id,
+                final_text=final_text,
+            )
             logger.info(
                 "directus_streaming.completed",
                 message_id=self.message_id,
@@ -175,13 +170,9 @@ class DirectusMessageWriter:
         self._cancel_pending_flush()
 
         try:
-            await self.client.update_message(
-                self.message_id,
-                {
-                    "messageText": error_text,
-                    "message_complete": True,
-                    "message_error": True,
-                },
+            await self.client.complete_message(
+                message_id=self.message_id,
+                final_text=error_text,
             )
             logger.info(
                 "directus_streaming.error_completed",
@@ -203,7 +194,7 @@ class DirectusMessageWriter:
             return
 
         try:
-            await self.client.update_message(self.message_id, {"messageText": self._buffer})
+            await self.client.update_message_text(self.message_id, self._buffer)
             self._last_flush_time = time.time() * 1000
         except Exception as e:
             logger.error(

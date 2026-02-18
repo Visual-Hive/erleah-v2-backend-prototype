@@ -4,11 +4,21 @@ Vector search tool for semantic search across conference data.
 Searches attendees, sessions, and exhibitors using vector embeddings.
 """
 
-from typing import Literal
+from typing import Literal, Type
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from src.tools.base import ErleahBaseTool
+
+
+class VectorSearchInput(BaseModel):
+    """Input schema for VectorSearchTool."""
+
+    query: str = Field(description="Natural language search query")
+    collection: Literal["attendees", "sessions", "exhibitors"] = Field(
+        description="Which collection to search"
+    )
+    limit: int = Field(default=10, description="Maximum results to return")
 
 
 class VectorSearchTool(ErleahBaseTool):
@@ -43,13 +53,9 @@ class VectorSearchTool(ErleahBaseTool):
     Returns:
         List of relevant results with similarity scores
     """
-    
-    query: str = Field(description="Natural language search query")
-    collection: Literal["attendees", "sessions", "exhibitors"] = Field(
-        description="Which collection to search"
-    )
-    limit: int = Field(default=10, description="Maximum results to return")
-    
+
+    args_schema: Type[BaseModel] = VectorSearchInput
+
     async def _arun(
         self,
         query: str,
