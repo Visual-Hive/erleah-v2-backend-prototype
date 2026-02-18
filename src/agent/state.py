@@ -44,6 +44,7 @@ class AssistantState(TypedDict):
     # --- fetch_data ---
     user_profile: dict[str, Any]
     conversation_history: list[dict]
+    conversation_context: dict | None  # TASK-03: structured conv context
     profile_needs_update: bool
 
     # --- update_profile ---
@@ -90,3 +91,9 @@ class AssistantState(TypedDict):
     error_context: ErrorContext | None  # None = no errors occurred
     partial_failure: bool  # True = some nodes failed, results may be degraded
     force_response: bool  # True = skip remaining nodes, go straight to generate_response
+
+    # --- reflect_and_replan (R1) ---
+    reflection_reasoning: str              # LLM's reasoning about why results were poor
+    reflection_strategy: str               # "relax" | "rewrite" | "pivot" | ""
+    thinking_updates: list[dict]           # Thinking records: [{message, strategy, retry_count, ts}]
+    original_planned_queries: list[dict]   # Preserve first plan for comparison

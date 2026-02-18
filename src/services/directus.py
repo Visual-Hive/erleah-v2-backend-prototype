@@ -106,6 +106,31 @@ class DirectusClient:
         payload: dict[str, Any] = {"messageText": final_text}
         await self._client.patch(f"/items/Message/{message_id}", json=payload)
 
+    async def update_message_thinking(
+        self,
+        message_id: str,
+        thinking_output: list[dict],
+    ) -> None:
+        """Update the thinking_output field on a message (R1/R3).
+
+        Called each time reflect_and_replan runs so the production frontend
+        can render thinking steps via its existing WebSocket subscription.
+        The field must exist on the Message collection in Directus (type: json).
+        """
+        try:
+            await self._client.patch(
+                f"/items/Message/{message_id}",
+                json={"thinking_output": thinking_output},
+            )
+        except Exception as e:
+            # Non-fatal — thinking display is optional, never block the pipeline
+            import structlog
+            structlog.get_logger().warning(
+                "directus.update_message_thinking.failed",
+                message_id=message_id,
+                error=str(e),
+            )
+
     # --- User Profile ---
     # Production collection: "user_profile" (singular)
 

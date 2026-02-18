@@ -45,6 +45,16 @@ async def plan_queries(state: AssistantState) -> dict:
         recent = history[-5:]  # Last 5 messages for context
         context_parts.append(f"Recent conversation: {json.dumps(recent, default=str)}")
 
+    # TASK-03: Additional conversation context (summary, referenced entities)
+    conv_ctx = state.get("conversation_context") or {}
+    if conv_ctx.get("summary"):
+        context_parts.append(f"Conversation summary: {conv_ctx['summary']}")
+    if conv_ctx.get("referenced_entities"):
+        mentioned = ", ".join(conv_ctx["referenced_entities"][:10])
+        context_parts.append(f"Previously mentioned entities: {mentioned}")
+    if conv_ctx.get("is_first_message"):
+        context_parts.append("Note: This is the user's first message.")
+
     if faq_list:
         context_parts.append(
             f"General FAQ Topics:\n{json.dumps(faq_list, default=str)}"

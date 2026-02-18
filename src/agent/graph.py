@@ -31,6 +31,7 @@ from src.agent.nodes.fetch_data import fetch_data_parallel
 from src.agent.nodes.generate_acknowledgment import generate_acknowledgment
 from src.agent.nodes.generate_response import generate_response
 from src.agent.nodes.plan_queries import plan_queries
+from src.agent.nodes.reflect_and_replan import reflect_and_replan
 from src.agent.nodes.relax_and_retry import relax_and_retry
 from src.agent.nodes.update_profile import update_profile
 from src.agent.llm_registry import get_llm_registry
@@ -60,7 +61,7 @@ WORKFLOW_TIMEOUT = 120.0  # seconds (increased for Proxy/Gemini latency)
 
 
 def should_update_profile(state: AssistantState) -> str:
-    """Route to update_profile if the message contains profile info.
+    """Skip profile updates — anonymous users only (TASK-03).
 
     Also checks force_response — if a critical failure occurred, skip
     straight to generate_response regardless of profile needs.
@@ -71,10 +72,8 @@ def should_update_profile(state: AssistantState) -> str:
     needs_update = state.get("profile_needs_update", False)
     direct = state.get("direct_response", False)
 
-    # If we need update, go to update_profile
-    if needs_update:
-        logger.info("  [conditional] should_update_profile? YES -> update_profile")
-        return "update_profile"
+    # Profile updates disabled for anonymous mode (TASK-03)
+    # update_profile node stays registered but is unreachable
 
     # Otherwise, decide between response or search
     decision = "generate_response" if direct else "execute_queries"
@@ -114,17 +113,25 @@ def should_continue_after_execute(state: AssistantState) -> str:
 
 
 def should_retry(state: AssistantState) -> str:
-    """Route to relax_and_retry if there are zero-result tables and retries left.
+    """Route after check_results.
 
-    Also checks force_response — if a critical failure occurred, skip
-    straight to generate_response.
+    When needs_retry=True:
+      - reflection_enabled=True  → reflect_and_replan (LLM-powered)
+      - reflection_enabled=False → relax_and_retry (mechanical fallback)
+    Also checks force_response — if a critical failure occurred, skip straight
+    to generate_response.
     """
     if state.get("force_response"):
         logger.info("  [conditional] force_response=True, skipping retry to generate_response")
         return "generate_response"
     needs_retry = state.get("needs_retry", False)
-    decision = "relax_and_retry" if needs_retry else "generate_response"
-    return decision
+    if not needs_retry:
+        return "generate_response"
+    if settings.reflection_enabled:
+        logger.info("  [conditional] needs_retry=True, reflection_enabled=True → reflect_and_replan")
+        return "reflect_and_replan"
+    logger.info("  [conditional] needs_retry=True, reflection_enabled=False → relax_and_retry")
+    return "relax_and_retry"
 
 
 # --- Build the graph ---
@@ -139,6 +146,7 @@ graph_builder.add_node("plan_queries", plan_queries)
 graph_builder.add_node("execute_queries", execute_queries)
 graph_builder.add_node("check_results", check_results)
 graph_builder.add_node("relax_and_retry", relax_and_retry)
+graph_builder.add_node("reflect_and_replan", reflect_and_replan)  # R4
 graph_builder.add_node("generate_response", generate_response)
 graph_builder.add_node("evaluate", evaluate)
 
@@ -186,14 +194,21 @@ graph_builder.add_conditional_edges(
     },
 )
 
-# check_results → conditional → relax_and_retry OR generate_response
+# check_results → conditional → reflect_and_replan | relax_and_retry | generate_response
 graph_builder.add_conditional_edges(
     "check_results",
     should_retry,
-    {"relax_and_retry": "relax_and_retry", "generate_response": "generate_response"},
+    {
+        "reflect_and_replan": "reflect_and_replan",   # R4: LLM-powered path
+        "relax_and_retry": "relax_and_retry",         # Mechanical fallback
+        "generate_response": "generate_response",
+    },
 )
 
-# relax_and_retry → check_results (loop back)
+# reflect_and_replan → execute_queries (re-run with new planned_queries)  R4
+graph_builder.add_edge("reflect_and_replan", "execute_queries")
+
+# relax_and_retry → check_results (mechanical loop back — preserved)
 graph_builder.add_edge("relax_and_retry", "check_results")
 
 # generate_response → evaluate
@@ -216,6 +231,7 @@ PROGRESS_MESSAGES = {
     "execute_queries": "Searching...",
     "check_results": "Analyzing results...",
     "relax_and_retry": "Expanding search...",
+    "reflect_and_replan": "Rethinking my approach...",
     "generate_response": "Preparing response...",
     "evaluate": None,
 }
@@ -280,6 +296,7 @@ _PIPELINE_NODES = {
     "execute_queries",
     "check_results",
     "relax_and_retry",
+    "reflect_and_replan",
     "generate_response",
     "evaluate",
 }
@@ -289,6 +306,7 @@ _LLM_NODES = {
     "evaluate",
     "update_profile",
     "generate_acknowledgment",
+    "reflect_and_replan",
 }
 _NODE_PROMPT_KEYS = {
     "plan_queries": "plan_queries",
@@ -296,6 +314,7 @@ _NODE_PROMPT_KEYS = {
     "evaluate": "evaluate",
     "update_profile": "profile_update",
     "generate_acknowledgment": "acknowledgment",
+    "reflect_and_replan": "reflect_and_replan",
 }
 
 
@@ -357,6 +376,7 @@ async def stream_agent_response(
         "user_context": user_context,
         "user_profile": {},
         "conversation_history": [],
+        "conversation_context": None,
         "profile_needs_update": False,
         "profile_updates": None,
         "profile_updated": False,
@@ -387,6 +407,11 @@ async def stream_agent_response(
         "error_context": None,
         "partial_failure": False,
         "force_response": False,
+        # Reflection fields (R1/R2)
+        "thinking_updates": [],
+        "original_planned_queries": [],
+        "reflection_reasoning": "",
+        "reflection_strategy": "",
     }
 
     seen_nodes: set[str] = set()
@@ -541,6 +566,26 @@ async def stream_agent_response(
                     "event": "done",
                     "data": {"trace_id": trace_id, "referenced_ids": referenced_ids},
                 }
+
+            # --- R3: thinking SSE event when reflect_and_replan completes ---
+            if kind == "on_chain_end" and langgraph_node == "reflect_and_replan":
+                output = event.get("data", {}).get("output", {})
+                if isinstance(output, dict):
+                    thinking_updates = output.get("thinking_updates", [])
+                    if thinking_updates:
+                        latest = thinking_updates[-1]
+                        yield {"event": "thinking", "data": latest}
+                        # Persist to Directus (non-fatal — writer may be None)
+                        if directus_writer and hasattr(directus_writer, "_message_id"):
+                            try:
+                                from src.services.directus import get_directus_client
+                                dc = get_directus_client()
+                                await dc.update_message_thinking(
+                                    directus_writer._message_id,
+                                    thinking_updates,
+                                )
+                            except Exception:
+                                pass  # Non-fatal
 
             # --- Debug: capture latest output from on_chain_end ---
             if (

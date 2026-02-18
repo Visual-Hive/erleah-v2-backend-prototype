@@ -15,6 +15,7 @@ export const PIPELINE_FLOW = [
   'execute_queries',
   'check_results',
   'relax_and_retry',
+  'reflect_and_replan',
   'generate_response',
   'evaluate',
 ];
@@ -28,6 +29,7 @@ export const NODE_META = {
   execute_queries:         { label: 'Execute Queries',   icon: '🔍', hasLlm: false },
   check_results:           { label: 'Check Results',     icon: '✅', hasLlm: false },
   relax_and_retry:         { label: 'Relax & Retry',     icon: '🔄', hasLlm: false },
+  reflect_and_replan:      { label: 'Reflect & Replan',  icon: '🤔', hasLlm: true  },
   generate_response:       { label: 'Generate Response', icon: '📝', hasLlm: true  },
   evaluate:                { label: 'Evaluate',          icon: '📊', hasLlm: true  },
 };
@@ -61,6 +63,7 @@ function createInitialState() {
     summary: null,          // pipeline_summary data
     error: null,
     eventsReceived: 0,
+    thinkingUpdates: [],    // R3: thinking records from reflect_and_replan
   };
 }
 
@@ -186,6 +189,15 @@ export function handleError(data) {
     ...state,
     status: 'error',
     error: data.error || data.message || 'Unknown error',
+    eventsReceived: state.eventsReceived + 1,
+  }));
+}
+
+/** Handle thinking event (R3) — emitted when reflect_and_replan finishes */
+export function handleThinking(data) {
+  pipeline.update(state => ({
+    ...state,
+    thinkingUpdates: [...state.thinkingUpdates, data],
     eventsReceived: state.eventsReceived + 1,
   }));
 }

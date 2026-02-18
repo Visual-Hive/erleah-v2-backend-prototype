@@ -17,6 +17,7 @@ from src.agent.prompts import (
     PLAN_QUERIES_SYSTEM,
     PROFILE_DETECT_SYSTEM,
     PROFILE_UPDATE_SYSTEM,
+    REFLECT_AND_REPLAN_SYSTEM,
 )
 
 logger = structlog.get_logger()
@@ -54,6 +55,7 @@ _PROMPT_DEFAULTS: dict[str, tuple[str, str]] = {
     "profile_detect": (PROFILE_DETECT_SYSTEM, "update_profile"),
     "profile_update": (PROFILE_UPDATE_SYSTEM, "update_profile"),
     "acknowledgment": (ACKNOWLEDGMENT_SYSTEM, "generate_acknowledgment"),
+    "reflect_and_replan": (REFLECT_AND_REPLAN_SYSTEM, "reflect_and_replan"),
 }
 
 

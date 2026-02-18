@@ -143,8 +143,30 @@
       {/each}
     </div>
 
-    <!-- Retry loop indicator -->
-    {#if $pipeline.nodes.relax_and_retry.status !== 'waiting'}
+    <!-- Retry / Reflection indicators — shown only when active -->
+    {#if $pipeline.nodes.reflect_and_replan?.status !== 'waiting'}
+      <!-- LLM-powered reflection (reflection_enabled=True) -->
+      <div class="flex justify-center mt-1">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded border border-purple-800/50 bg-purple-950/20">
+          <span class="text-sm">🤔</span>
+          <button
+            class="text-xs text-purple-400 cursor-pointer hover:underline"
+            onclick={() => selectNode('reflect_and_replan')}
+          >
+            Reflect & Replan
+            {#if $pipeline.nodes.reflect_and_replan.duration_ms !== null}
+              ({formatDuration($pipeline.nodes.reflect_and_replan.duration_ms)})
+            {/if}
+          </button>
+          {#if $pipeline.thinkingUpdates?.length > 0}
+            <span class="text-[9px] px-1 py-0.5 rounded bg-purple-900/40 text-purple-300 font-mono">
+              {$pipeline.thinkingUpdates[$pipeline.thinkingUpdates.length - 1]?.strategy}
+            </span>
+          {/if}
+        </div>
+      </div>
+    {:else if $pipeline.nodes.relax_and_retry?.status !== 'waiting'}
+      <!-- Mechanical fallback (reflection_enabled=False) -->
       <div class="flex justify-center mt-1">
         <div class="flex items-center gap-2 px-3 py-1.5 rounded border border-yellow-800/50 bg-yellow-950/20">
           <span class="text-sm">🔄</span>
@@ -158,6 +180,22 @@
             {/if}
           </button>
         </div>
+      </div>
+    {/if}
+
+    <!-- Thinking updates strip (shown below graph when reflection ran) -->
+    {#if $pipeline.thinkingUpdates?.length > 0}
+      <div class="mt-3 flex flex-col gap-1">
+        {#each $pipeline.thinkingUpdates as step, i}
+          <div class="px-3 py-2 rounded bg-yellow-950/20 border border-yellow-900/30">
+            <div class="text-[10px] text-yellow-400 uppercase mb-1 flex gap-2">
+              <span>🔄 Retry {step.retry_count}</span>
+              <span class="text-yellow-600">·</span>
+              <span>{step.strategy}</span>
+            </div>
+            <div class="text-xs text-yellow-200 italic">{step.message}</div>
+          </div>
+        {/each}
       </div>
     {/if}
   </div>

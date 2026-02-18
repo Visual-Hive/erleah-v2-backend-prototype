@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     # Evaluation
     evaluation_enabled: bool = True
 
+    # Reflection (LLM-powered retry — R1)
+    reflection_enabled: bool = True         # Use LLM reflection vs mechanical retry
+    reflection_model_node: str = "reflect_and_replan"  # LLM registry key
+
     # Directus streaming — write response chunks to Directus messages
     # so the frontend can watch via WebSocket (no SSE needed on frontend)
     directus_streaming_enabled: bool = True

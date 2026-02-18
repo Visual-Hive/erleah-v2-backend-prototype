@@ -23,13 +23,13 @@
 
 ## Task Breakdown
 
-| Task | Title | Scope | Depends On |
-|------|-------|-------|------------|
-| [TASK-R1](./REFLECTION_TASK-R1_STATE_AND_CONFIG.md) | State & Config Foundations | New state fields, config flags, Directus schema | — |
-| [TASK-R2](./REFLECTION_TASK-R2_REFLECT_AND_REPLAN.md) | LLM-Powered Reflect & Replan Node | New node replacing mechanical retry | R1 |
-| [TASK-R3](./REFLECTION_TASK-R3_THINKING_EVENTS.md) | Thinking Events (SSE + Directus) | Stream reasoning to users and DevTools | R1, R2 |
-| [TASK-R4](./REFLECTION_TASK-R4_GRAPH_WIRING.md) | Graph Wiring & Conditional Edges | Wire new node into LangGraph, feature flag | R1, R2 |
-| [TASK-R5](./REFLECTION_TASK-R5_EVALUATE_FEEDBACK.md) | Evaluate Feedback Loop (Deferred) | Optional regeneration on low quality scores | R1–R4 |
+| Task | Title | Scope | Depends On | Status |
+|------|-------|-------|------------|--------|
+| [TASK-R1](./REFLECTION_TASK-R1_STATE_AND_CONFIG.md) | State & Config Foundations | New state fields, config flags, Directus schema | — | ✅ Done |
+| [TASK-R2](./REFLECTION_TASK-R2_REFLECT_AND_REPLAN.md) | LLM-Powered Reflect & Replan Node | New node replacing mechanical retry | R1 | ✅ Done |
+| [TASK-R3](./REFLECTION_TASK-R3_THINKING_EVENTS.md) | Thinking Events (SSE + Directus) | Stream reasoning to users and DevTools | R1, R2 | ✅ Done |
+| [TASK-R4](./REFLECTION_TASK-R4_GRAPH_WIRING.md) | Graph Wiring & Conditional Edges | Wire new node into LangGraph, feature flag | R1, R2 | ✅ Done |
+| [TASK-R5](./REFLECTION_TASK-R5_EVALUATE_FEEDBACK.md) | Evaluate Feedback Loop (Deferred) | Optional regeneration on low quality scores | R1–R4 | ⏳ Deferred |
 
 ---
 

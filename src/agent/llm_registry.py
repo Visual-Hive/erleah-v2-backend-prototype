@@ -67,6 +67,7 @@ LLM_NODES = [
     "evaluate",
     "update_profile",
     "acknowledgment",
+    "reflect_and_replan",
 ]
 
 DEFAULT_ASSIGNMENTS: dict[str, tuple[str, str]] = {
@@ -75,6 +76,7 @@ DEFAULT_ASSIGNMENTS: dict[str, tuple[str, str]] = {
     "evaluate": ("anthropic", "claude-haiku-4-5-20251001"),
     "update_profile": ("anthropic", "claude-sonnet-4-20250514"),
     "acknowledgment": ("groq", "llama-3.3-70b-versatile"),
+    "reflect_and_replan": ("anthropic", "claude-sonnet-4-20250514"),
 }
 
 

@@ -122,6 +122,40 @@
       </div>
     {/if}
 
+    <!-- Reflection details (shown only when reflect_and_replan is selected) -->
+    {#if $selectedNode === 'reflect_and_replan' && node.output}
+      <div class="mb-4 p-3 rounded bg-purple-950/20 border border-purple-900/30">
+        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Reflection Details</div>
+
+        {#if node.output.reflection_strategy}
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs text-gray-400">Strategy:</span>
+            <span class="text-xs font-mono px-1.5 py-0.5 rounded
+              {node.output.reflection_strategy === 'rewrite' ? 'bg-blue-900/40 text-blue-300' : ''}
+              {node.output.reflection_strategy === 'relax' ? 'bg-green-900/40 text-green-300' : ''}
+              {node.output.reflection_strategy === 'pivot' ? 'bg-orange-900/40 text-orange-300' : ''}
+            ">{node.output.reflection_strategy}</span>
+          </div>
+        {/if}
+
+        {#if node.output.reflection_reasoning}
+          <div class="mb-2">
+            <div class="text-[10px] text-gray-500 mb-1">Reasoning (developer)</div>
+            <div class="text-xs text-purple-200 italic leading-relaxed">{node.output.reflection_reasoning}</div>
+          </div>
+        {/if}
+
+        {#if node.output.thinking_updates?.length > 0}
+          <div>
+            <div class="text-[10px] text-gray-500 mb-1">User-facing message</div>
+            <div class="text-xs text-yellow-200 italic">
+              "{node.output.thinking_updates[node.output.thinking_updates.length - 1]?.message}"
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <!-- Node name (for reference) -->
     <div class="mt-auto pt-4 border-t border-gray-800">
       <div class="text-[10px] text-gray-600 font-mono">node: {$selectedNode}</div>

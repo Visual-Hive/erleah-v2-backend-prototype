@@ -16,6 +16,7 @@ import {
   handleDone,
   handlePipelineSummary,
   handleError,
+  handleThinking,
 } from './stores/pipeline.js';
 
 import { saveRun, toggleRunSelection, selectedRunIds } from './stores/history.js';
@@ -185,6 +186,9 @@ function parseAndDispatchSSE(raw) {
       handlePipelineSummary(data);
       // Auto-save completed run to history
       saveRunFromPipeline();
+      break;
+    case 'thinking':
+      handleThinking(data);
       break;
     case 'error':
       handleError(data);

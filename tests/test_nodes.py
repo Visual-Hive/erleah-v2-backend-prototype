@@ -25,6 +25,7 @@ def _base_state(**overrides):
         "user_context": {"user_id": "u1", "conference_id": "conf-2024"},
         "user_profile": {},
         "conversation_history": [],
+        "conversation_context": None,
         "profile_needs_update": False,
         "profile_updates": None,
         "profile_updated": False,
@@ -87,49 +88,55 @@ def mock_cache():
 class TestFetchData:
     @pytest.mark.asyncio
     async def test_returns_empty_defaults_when_directus_unavailable(self):
-        """Graceful degradation: empty profile/history when Directus is down."""
-        with patch("src.agent.nodes.fetch_data.get_directus_client") as mock_dc:
-            client = AsyncMock()
-            client.get_user_profile.side_effect = Exception("connection refused")
-            client.get_conversation_context.side_effect = Exception("connection refused")
-            mock_dc.return_value = client
+        """Graceful degradation: empty context when Directus is down."""
+        from src.agent.nodes.fetch_data import fetch_data_parallel
 
-            from src.agent.nodes.fetch_data import fetch_data_parallel
-
-            state = _base_state()
-            result = await fetch_data_parallel(state)
-
-            assert result["user_profile"] == {}
-            assert result["conversation_history"] == []
-            assert result["current_node"] == "fetch_data"
-
-    @pytest.mark.asyncio
-    async def test_fetches_profile_and_history(self):
-        """Happy path: fetches profile + history from Directus."""
-        mock_profile = {"interests": ["AI"], "role": "developer"}
-        mock_history = [{"role": "user", "messageText": "hello"}]
-
-        # fetch_data validates user_id/conversation_id as UUIDs — use real ones
-        valid_user_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-        valid_conv_id = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
-
-        with patch("src.agent.nodes.fetch_data.get_directus_client") as mock_dc:
-            client = AsyncMock()
-            client.get_user_profile.return_value = mock_profile
-            client.get_conversation_context.return_value = mock_history
-            mock_dc.return_value = client
-
-            from src.agent.nodes.fetch_data import fetch_data_parallel
+        with patch("src.agent.nodes.fetch_data.get_conversation_service") as mock_svc:
+            svc = AsyncMock()
+            svc.get_context.side_effect = Exception("connection refused")
+            mock_svc.return_value = svc
 
             state = _base_state(user_context={
-                "user_id": valid_user_id,
-                "conversation_id": valid_conv_id,
+                "conversation_id": "conv-123",
                 "conference_id": "conf-2024",
             })
             result = await fetch_data_parallel(state)
 
-            assert result["user_profile"] == mock_profile
-            assert result["conversation_history"] == mock_history
+            assert result["conversation_context"]["message_count"] == 0
+            assert result["conversation_context"]["is_first_message"] is True
+            assert result["conversation_history"] == []
+            assert result["current_node"] == "fetch_data"
+
+    @pytest.mark.asyncio
+    async def test_fetches_conversation_context(self):
+        """Happy path: fetches conversation context via ConversationService."""
+        mock_ctx = {
+            "conversation_id": "conv-abc",
+            "message_count": 3,
+            "is_first_message": False,
+            "recent_messages": [
+                {"role": "user", "text": "hello", "timestamp": ""},
+            ],
+            "referenced_entities": ["e1"],
+            "summary": None,
+        }
+
+        from src.agent.nodes.fetch_data import fetch_data_parallel
+
+        with patch("src.agent.nodes.fetch_data.get_conversation_service") as mock_svc:
+            svc = AsyncMock()
+            svc.get_context.return_value = mock_ctx
+            mock_svc.return_value = svc
+
+            state = _base_state(user_context={
+                "conversation_id": "conv-abc",
+                "conference_id": "conf-2024",
+            })
+            result = await fetch_data_parallel(state)
+
+            assert result["conversation_context"] == mock_ctx
+            assert result["profile_needs_update"] is False
+            assert result["current_node"] == "fetch_data"
 
 
 # ---------------------------------------------------------------------------
